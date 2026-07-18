@@ -11,7 +11,7 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "groq-sdk": "^0.7.0",
-    "msedge-tts": "^2.0.0",
+    "edge-tts-universal": "^1.4.0",
     "googleapis": "^140.0.0",
     "node-cron": "^3.0.3"
   }

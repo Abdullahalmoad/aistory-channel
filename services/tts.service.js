@@ -1,21 +1,30 @@
-const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+const { EdgeTTS } = require('edge-tts-universal');
+const { spawn } = require('child_process');
 const fs = require('fs');
+const fsp = require('fs/promises');
 const path = require('path');
 
 const DEFAULT_VOICE = process.env.TTS_VOICE || 'en-US-EricNeural';
+const SCENES_PER_BATCH = 8;
 
-function buildNarrationSSML(scenes) {
-  const body = scenes
-    .map((scene) => `${escapeSSML(scene.text)}<break time="500ms"/>`)
-    .join('\n');
-  return body;
+function buildBatchText(scenes) {
+  return scenes.map((scene) => scene.text).join(' ... ');
 }
 
-function escapeSSML(text) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+async function synthesizeBatch(text, outputPath, voice) {
+  const tts = new EdgeTTS(text, voice, { rate: '+0%', volume: '+0%', pitch: '+0Hz' });
+  const result = await tts.synthesize();
+  const audioBuffer = Buffer.from(await result.audio.arrayBuffer());
+  await fsp.writeFile(outputPath, audioBuffer);
+}
+
+function runFfmpeg(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', ['-y', ...args]);
+    let stderr = '';
+    proc.stderr.on('data', (d) => (stderr += d.toString()));
+    proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(stderr.slice(-1500)))));
+  });
 }
 
 async function generateNarrationAudio(scenes, options = {}) {
@@ -28,20 +37,31 @@ async function generateNarrationAudio(scenes, options = {}) {
     throw new Error('No scenes provided for narration');
   }
 
-  const fullText = buildNarrationSSML(scenes);
+  const batchDir = path.join('/tmp', `tts-batches-${Date.now()}`);
+  fs.mkdirSync(batchDir, { recursive: true });
 
-  const tts = new MsEdgeTTS();
-  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+  const batchPaths = [];
+  for (let i = 0; i < scenes.length; i += SCENES_PER_BATCH) {
+    const batchScenes = scenes.slice(i, i + SCENES_PER_BATCH);
+    const batchText = buildBatchText(batchScenes);
+    const batchPath = path.join(batchDir, `batch-${String(i).padStart(4, '0')}.mp3`);
 
-  const { audioStream } = tts.toStream(fullText);
+    try {
+      await synthesizeBatch(batchText, batchPath, voice);
+    } catch (err) {
+      console.warn(`TTS batch ${i} failed once (${err.message}), retrying...`);
+      await new Promise((r) => setTimeout(r, 1000));
+      await synthesizeBatch(batchText, batchPath, voice);
+    }
+    batchPaths.push(batchPath);
+  }
 
-  await new Promise((resolve, reject) => {
-    const writeStream = fs.createWriteStream(outputPath);
-    audioStream.pipe(writeStream);
-    audioStream.on('error', reject);
-    writeStream.on('finish', resolve);
-    writeStream.on('error', reject);
-  });
+  const concatListPath = path.join(batchDir, 'concat-list.txt');
+  fs.writeFileSync(
+    concatListPath,
+    batchPaths.map((p) => `file '${path.resolve(p)}'`).join('\n')
+  );
+  await runFfmpeg(['-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', outputPath]);
 
   return { filePath: outputPath, voice };
 }
