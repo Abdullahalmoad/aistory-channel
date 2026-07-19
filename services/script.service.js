@@ -132,16 +132,22 @@ The "lines" array MUST have exactly the same number of items, in the same order,
 async function proofreadScenes(scenes) {
   const originalLines = scenes.map((s) => s.text);
 
-  const completion = await groq.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: PROOFREAD_SYSTEM_PROMPT },
-      { role: 'user', content: JSON.stringify({ lines: originalLines }) },
-    ],
-    temperature: 0.1,
-    max_tokens: 8000,
-    response_format: { type: 'json_object' },
-  });
+  let completion;
+  try {
+    completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: PROOFREAD_SYSTEM_PROMPT },
+        { role: 'user', content: JSON.stringify({ lines: originalLines }) },
+      ],
+      temperature: 0.1,
+      max_tokens: 8000,
+      response_format: { type: 'json_object' },
+    });
+  } catch (err) {
+    console.warn(`Proofread pass failed (${err.message}) - keeping original text unmodified`);
+    return scenes.map((s) => ({ ...s, was_corrected: false }));
+  }
 
   const rawText = completion.choices[0]?.message?.content;
   if (!rawText) {

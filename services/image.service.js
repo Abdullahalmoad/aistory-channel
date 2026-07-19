@@ -9,20 +9,23 @@ const STYLE_SUFFIX =
 
 function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
-    https
-      .get(url, { headers }, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
-          return downloadToFile(res.headers.location, destPath, headers, redirectsLeft - 1).then(resolve, reject);
-        }
-        if (res.statusCode !== 200) {
-          return reject(new Error(`Download failed: HTTP ${res.statusCode} for ${url}`));
-        }
-        const fileStream = fs.createWriteStream(destPath);
-        res.pipe(fileStream);
-        fileStream.on('finish', () => fileStream.close(() => resolve(destPath)));
-        fileStream.on('error', reject);
-      })
-      .on('error', reject);
+    const req = https.get(url, { headers, timeout: 45000 }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
+        return downloadToFile(res.headers.location, destPath, headers, redirectsLeft - 1).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) {
+        return reject(new Error(`Download failed: HTTP ${res.statusCode} for ${url}`));
+      }
+      const fileStream = fs.createWriteStream(destPath);
+      res.pipe(fileStream);
+      fileStream.on('finish', () => fileStream.close(() => resolve(destPath)));
+      fileStream.on('error', reject);
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timed out after 45s'));
+    });
+    req.on('error', reject);
   });
 }
 
