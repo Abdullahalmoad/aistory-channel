@@ -1,3 +1,4 @@
+require('dotenv').config();
 // pipeline.js
 // Full end-to-end run for ONE topic: script -> narration -> images ->
 // timestamps -> render long video -> cut Short teaser -> upload both to

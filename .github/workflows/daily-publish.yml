@@ -19,7 +19,7 @@ jobs:
 
       - name: Random delay to vary publish time
         run: |
-          MINUTES=$(( RANDOM % 180 ))
+          MINUTES=0
           echo "Sleeping $MINUTES minutes to randomize actual publish time"
           sleep $((MINUTES * 60))
 
