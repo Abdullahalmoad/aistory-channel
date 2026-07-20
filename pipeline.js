@@ -105,7 +105,7 @@ async function runMorningPipeline(topic) {
 
   console.log('[1/6] Generating script...');
   const narrativeStyle = pickNarrativeStyle();
-  const script = await generateScript(topic, { targetWords: 1800, narrativeStyle });
+  const script = await generateScript(topic, { targetWords: Math.floor(1800 + Math.random() * 900), narrativeStyle });
   console.log(`  -> "${script.title}" | ${script.scenes.length} scenes | style: ${narrativeStyle}`);
 
   console.log('[2/6] Generating narration audio...');
