@@ -1,1 +1,7 @@
 node_modules/
+
+# Test artifacts (generated locally, never commit)
+test-phase3-*
+test-images/
+test-output.mp3
+fix-blur*.py
