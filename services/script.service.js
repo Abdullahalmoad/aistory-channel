@@ -17,6 +17,8 @@ Exact shape required:
   "title": "Compelling, clickable YouTube title (avoid excessive clickbait, keep it honest)",
   "description": "2-4 sentence YouTube description including a natural mention of the topic, plus 3-5 relevant hashtags at the end",
   "tags": ["tag1", "tag2", "..."],
+    "thumbnail_text": "2-4 punchy ALL CAPS words for a YouTube thumbnail overlay, e.g. NINE DEAD or STILL MISSING, maximum curiosity, no punctuation",
+    "thumbnail_image_prompt": "Short, concrete English description of ONE dramatic high-impact visual moment from the story for use as a thumbnail background image, the single most shocking or mysterious image from the story",
   "estimated_word_count": 1800,
   "scenes": [
     {

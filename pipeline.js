@@ -13,6 +13,7 @@ const { transcribeAndAssign } = require('./services/transcribe.service');
 const { renderLongVideo, renderShortTeaser } = require('./services/render.service');
 const { uploadVideo } = require('./services/youtube.service');
 const { getNextTopic } = require('./services/topics.service');
+const { generateThumbnail } = require('./services/thumbnail.service');
 const { getRandomMusicTrack } = require('./services/music.service');
 const { notifySuccess, notifyFailure } = require('./services/telegram.service');
 
@@ -35,6 +36,12 @@ async function runPipelineForTopic(topic) {
   console.log('[3/6] Fetching/generating images...');
   const imagesDir = path.join(workDir, 'images');
   const scenesWithImages = await getAllSceneImages(script.scenes, imagesDir);
+
+    console.log('  -> Generating thumbnail...');
+    const thumbnailPath = await generateThumbnail(script, workDir).catch((err) => {
+      console.warn(`Thumbnail generation failed: ${err.message}`);
+      return null;
+    });
 
   console.log('[4/6] Transcribing narration for caption timing...');
   const { scenes: scenesWithTimestamps } = await transcribeAndAssign(audioPath, scenesWithImages);
