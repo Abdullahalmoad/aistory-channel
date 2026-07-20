@@ -5,3 +5,4 @@ test-phase3-*
 test-images/
 test-output.mp3
 fix-blur*.py
+.env
