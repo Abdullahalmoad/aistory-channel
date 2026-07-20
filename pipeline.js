@@ -75,6 +75,7 @@ async function runPipelineForTopic(topic) {
 
   const longUpload = await uploadVideo({
     videoPath: longVideoPath,
+    thumbnailPath,
     title: script.title,
     description: script.description,
     tags: script.tags,
@@ -151,6 +152,7 @@ async function runMorningPipeline(topic) {
 
   const longUpload = await uploadVideo({
     videoPath: longVideoPath,
+    thumbnailPath,
     title: script.title,
     description: script.description,
     tags: script.tags,
