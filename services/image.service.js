@@ -10,7 +10,7 @@ const STYLE_SUFFIX =
 
 function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers, timeout: 45000 }, (res) => {
+    const req = https.get(url, { headers, timeout: 70000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
         return downloadToFile(res.headers.location, destPath, headers, redirectsLeft - 1).then(resolve, reject);
       }
@@ -24,7 +24,7 @@ function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
     });
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Request timed out after 45s'));
+      reject(new Error('Request timed out after 70s'));
     });
     req.on('error', reject);
   });
