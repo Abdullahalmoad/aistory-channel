@@ -35,7 +35,7 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080 
   const revealSec = Math.min(0.4, duration / 3);
 
   const zoompanFilter =
-    `scale=${width * 2}:${height * 2},` +
+    `scale=${Math.round(width * 1.3)}:${Math.round(height * 1.3)},` +
     `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.08-0.08*on/${Math.round(revealSec * fps)},min(zoom+0.0007,1.15))':` +
     `d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
     `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
