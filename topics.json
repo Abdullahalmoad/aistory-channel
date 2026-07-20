@@ -1,19 +1,64 @@
 {
   "topics": [
-    { "topic": "The Dyatlov Pass Incident: nine hikers who died mysteriously in Russia", "used": false },
-    { "topic": "The Bermuda Triangle: real disappearances and theories", "used": false },
-    { "topic": "The Skinwalker Ranch phenomena, according to witnesses", "used": false },
-    { "topic": "The Black-Eyed Children urban legend and where it came from", "used": false },
-    { "topic": "The Mothman sightings before the Silver Bridge collapse", "used": false },
-    { "topic": "The Sallie House haunting case", "used": false },
-    { "topic": "Real unsolved disappearances in national parks", "used": false },
-    { "topic": "The Winchester Mystery House and why it was built that way", "used": false },
-    { "topic": "The Hinterkaifeck murders: an unsolved German farmhouse mystery", "used": false },
-    { "topic": "Strange true stories of people who received warnings in dreams", "used": false },
-    { "topic": "The Toynbee tiles mystery embedded in US city streets", "used": false },
-    { "topic": "The Max Headroom broadcast signal intrusion incident", "used": false },
-    { "topic": "The Overtoun Bridge dog jumping phenomenon in Scotland", "used": false },
-    { "topic": "The Isdal Woman: an unidentified body and a decades-old mystery", "used": false },
-    { "topic": "Deep sea creatures and unexplained ocean phenomena", "used": false }
+    {
+      "topic": "The Dyatlov Pass Incident: nine hikers who died mysteriously in Russia",
+      "used": true
+    },
+    {
+      "topic": "The Bermuda Triangle: real disappearances and theories",
+      "used": false
+    },
+    {
+      "topic": "The Skinwalker Ranch phenomena, according to witnesses",
+      "used": false
+    },
+    {
+      "topic": "The Black-Eyed Children urban legend and where it came from",
+      "used": false
+    },
+    {
+      "topic": "The Mothman sightings before the Silver Bridge collapse",
+      "used": false
+    },
+    {
+      "topic": "The Sallie House haunting case",
+      "used": false
+    },
+    {
+      "topic": "Real unsolved disappearances in national parks",
+      "used": false
+    },
+    {
+      "topic": "The Winchester Mystery House and why it was built that way",
+      "used": false
+    },
+    {
+      "topic": "The Hinterkaifeck murders: an unsolved German farmhouse mystery",
+      "used": false
+    },
+    {
+      "topic": "Strange true stories of people who received warnings in dreams",
+      "used": false
+    },
+    {
+      "topic": "The Toynbee tiles mystery embedded in US city streets",
+      "used": false
+    },
+    {
+      "topic": "The Max Headroom broadcast signal intrusion incident",
+      "used": false
+    },
+    {
+      "topic": "The Overtoun Bridge dog jumping phenomenon in Scotland",
+      "used": false
+    },
+    {
+      "topic": "The Isdal Woman: an unidentified body and a decades-old mystery",
+      "used": false
+    },
+    {
+      "topic": "Deep sea creatures and unexplained ocean phenomena",
+      "used": false
+    }
   ]
 }
