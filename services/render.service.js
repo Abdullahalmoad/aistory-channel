@@ -28,7 +28,7 @@ function pickCaptionStyle() {
   return CAPTION_STYLES[Math.floor(Math.random() * CAPTION_STYLES.length)];
 }
 
-async function renderSceneClip(scene, outputPath, { width = 1280, height = 720 } = {}) {
+async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080 } = {}) {
   const duration = Math.max(scene.end_time - scene.start_time, 0.5);
   const fps = 30;
   const totalFrames = Math.round(duration * fps);
@@ -140,8 +140,8 @@ async function renderShortTeaser({ longVideoPath, scenes, workDir, outputPath })
 
     const vf =
       `[0:v]split=2[bg][fg];` +
-      `[bg]scale=320:568,boxblur=6:1,scale=720:1280[bgblur];` +
-      `[fg]scale=720:-1[fgscaled];` +
+      `[bg]scale=320:568,boxblur=6:1,scale=1080:1920[bgblur];` +
+      `[fg]scale=1080:-1[fgscaled];` +
       `[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2[vout]`;
 
     await runFfmpeg(
