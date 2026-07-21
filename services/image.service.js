@@ -68,14 +68,15 @@ async function fetchSceneImageWithRetry(scene) {
 async function getAllSceneImages(scenes, outputDir) {
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const BATCH_SIZE = 6;
+  const BATCH_SIZE = 2;
   const rawResults = new Array(scenes.length);
 
   for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
     const batch = scenes.slice(i, i + BATCH_SIZE);
     console.log(`  -> Fetching images ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length}...`);
     const batchResults = await Promise.all(
-      batch.map(async (scene) => {
+      batch.map(async (scene, idx) => {
+      await new Promise((r) => setTimeout(r, idx * 400));
         let filePath = null;
         let error = null;
         for (let attempt = 1; attempt <= 3; attempt++) {
@@ -86,7 +87,10 @@ async function getAllSceneImages(scenes, outputDir) {
           } catch (err) {
             error = err.message;
             console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
-            if (attempt < 3) await new Promise((r) => setTimeout(r, 1500));
+            if (attempt < 3) {
+            const backoff = Math.min(8000, 1500 * Math.pow(2, attempt - 1));
+            await new Promise((r) => setTimeout(r, backoff));
+          }
           }
         }
         return { filePath, error };
