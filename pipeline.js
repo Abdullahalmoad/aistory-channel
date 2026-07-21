@@ -136,6 +136,13 @@ async function runMorningPipeline(topic) {
   const { scenes: scenesWithTimestamps } = await transcribeAndAssign(audioPath, scenesWithImages);
 
   console.timeEnd('step4_transcribe');
+
+  console.log('  -> Generating thumbnail...');
+  const thumbnailPath = await generateThumbnail(script, workDir).catch((err) => {
+    console.warn(`Thumbnail generation failed: ${err.message}`);
+    return null;
+  });
+
   console.time('step5_render');
   console.log('[5/6] Rendering long video + Short teaser...');
   const musicPath = getRandomMusicTrack();
