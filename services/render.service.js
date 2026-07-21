@@ -139,12 +139,15 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
       '-map', '[vout]',
       '-map', '[aout]',
       '-c:v', 'libx264',
-      '-c:a', 'aac',
+      '-preset', 'veryfast',
+          '-crf', '23',
+          '-threads', '0',
+          '-c:a', 'aac',
       '-shortest',
       outputPath,
     ],
     'final mux',
-    1200000
+    1500000
   );
 
   return outputPath;
