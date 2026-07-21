@@ -68,7 +68,7 @@ async function fetchSceneImageWithRetry(scene) {
 async function getAllSceneImages(scenes, outputDir) {
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const BATCH_SIZE = 2;
+  const BATCH_SIZE = 1;
   const rawResults = new Array(scenes.length);
 
   for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
