@@ -51,12 +51,13 @@ function pickNarrativeStyle() {
 }
 
 async function generateScript(topic, options = {}) {
-  const { targetWords = DEFAULT_TARGET_WORDS, narrativeStyle = pickNarrativeStyle() } = options;
+  const { targetWords = DEFAULT_TARGET_WORDS } = options;
 
   const userPrompt = `Topic: ${topic}
 Target narration word count: approximately ${targetWords} words (this must produce a 10+ minute spoken video).
 Language: English.
-Narrative structure for THIS video (vary this across videos, don't default to the same shape every time): ${narrativeStyle}
+Choose the narrative structure that best fits THIS specific topic's content and tone. Pick exactly ONE of the following approaches (do not blend them, do not default to the same one every time - base your choice on what suits this story best):
+${NARRATIVE_STYLES.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
 Return the full script now as strict JSON, matching the required shape exactly.`;
 
