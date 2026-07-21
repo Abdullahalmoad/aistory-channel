@@ -48,27 +48,58 @@ async function getSceneImage(scene, outputDir, options = {}) {
   return { source: 'pollinations', filePath: destPath };
 }
 
+async function fetchSceneImageWithRetry(scene) {
+  let filePath = null;
+  let error = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const result = await getSceneImage(scene, arguments[1]);
+      filePath = result.filePath;
+      break;
+    } catch (err) {
+      error = err.message;
+      console.warn(`Image attempt ${attempt}/2 failed for scene ${scene.scene_order}: ${err.message}`);
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  return { filePath, error };
+}
+
 async function getAllSceneImages(scenes, outputDir) {
   fs.mkdirSync(outputDir, { recursive: true });
 
+  const BATCH_SIZE = 10;
+  const rawResults = new Array(scenes.length);
+
+  for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
+    const batch = scenes.slice(i, i + BATCH_SIZE);
+    console.log(`  -> Fetching images ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length}...`);
+    const batchResults = await Promise.all(
+      batch.map(async (scene) => {
+        let filePath = null;
+        let error = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const result = await getSceneImage(scene, outputDir);
+            filePath = result.filePath;
+            break;
+          } catch (err) {
+            error = err.message;
+            console.warn(`Image attempt ${attempt}/2 failed for scene ${scene.scene_order}: ${err.message}`);
+            if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+          }
+        }
+        return { filePath, error };
+      })
+    );
+    batchResults.forEach((r, idx) => { rawResults[i + idx] = r; });
+  }
+
   const results = [];
   let lastGoodImage = null;
-
-  for (const scene of scenes) {
-    let filePath = null;
-    let error = null;
-
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const result = await getSceneImage(scene, outputDir);
-        filePath = result.filePath;
-        break;
-      } catch (err) {
-        error = err.message;
-        console.warn(`Image attempt ${attempt}/2 failed for scene ${scene.scene_order}: ${err.message}`);
-        if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
-      }
-    }
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i];
+    let { filePath, error } = rawResults[i];
 
     if (!filePath) {
       if (lastGoodImage) {
@@ -83,7 +114,6 @@ async function getAllSceneImages(scenes, outputDir) {
     }
 
     results.push({ ...scene, image_file: filePath, image_error: error });
-    await new Promise((r) => setTimeout(r, 300));
   }
   return results;
 }

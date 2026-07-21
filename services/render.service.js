@@ -59,19 +59,30 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080 
 async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPath }) {
   fs.mkdirSync(workDir, { recursive: true });
 
-  const clipPaths = [];
-  for (const scene of scenes) {
+  const validScenes = scenes.filter((scene) => {
     if (!scene.image_file) {
       console.warn(`Skipping scene ${scene.scene_order} - no image_file`);
-      continue;
+      return false;
     }
-    const clipPath = path.join(workDir, `clip-${scene.scene_order}.mp4`);
-    console.log(`  -> Rendering scene ${scene.scene_order}/${scenes.length}...`);
-    const clipStart = Date.now();
-    await renderSceneClip(scene, clipPath);
-    clipPaths.push(clipPath);
-    console.log(`     scene ${scene.scene_order} done in ${((Date.now() - clipStart)/1000).toFixed(1)}s`);
+    return true;
+  });
+
+  const RENDER_CONCURRENCY = 4;
+  const clipPathsBySceneOrder = {};
+  for (let i = 0; i < validScenes.length; i += RENDER_CONCURRENCY) {
+    const batch = validScenes.slice(i, i + RENDER_CONCURRENCY);
+    console.log(`  -> Rendering scenes ${i + 1}-${Math.min(i + RENDER_CONCURRENCY, validScenes.length)}/${validScenes.length}...`);
+    await Promise.all(
+      batch.map(async (scene) => {
+        const clipPath = path.join(workDir, `clip-${scene.scene_order}.mp4`);
+        const clipStart = Date.now();
+        await renderSceneClip(scene, clipPath);
+        clipPathsBySceneOrder[scene.scene_order] = clipPath;
+        console.log(`     scene ${scene.scene_order} done in ${((Date.now() - clipStart)/1000).toFixed(1)}s`);
+      })
+    );
   }
+  const clipPaths = validScenes.map((s) => clipPathsBySceneOrder[s.scene_order]);
 
   const concatListPath = path.join(workDir, 'concat-list.txt');
   fs.writeFileSync(
@@ -136,33 +147,40 @@ async function renderShortTeaser({ longVideoPath, scenes, workDir, outputPath })
     throw new Error('No hook scenes marked - cannot build teaser Short');
   }
 
-  const vertClips = [];
-  for (const scene of hookScenes) {
-    const duration = Math.max(scene.end_time - scene.start_time, 0.5);
-    const clipPath = path.join(workDir, `hook-${scene.scene_order}.mp4`);
+  const HOOK_CONCURRENCY = 4;
+  const hookClipsByOrder = {};
+  for (let i = 0; i < hookScenes.length; i += HOOK_CONCURRENCY) {
+    const batch = hookScenes.slice(i, i + HOOK_CONCURRENCY);
+    await Promise.all(
+      batch.map(async (scene) => {
+        const duration = Math.max(scene.end_time - scene.start_time, 0.5);
+        const clipPath = path.join(workDir, `hook-${scene.scene_order}.mp4`);
 
-    const vf =
-      `[0:v]split=2[bg][fg];` +
-      `[bg]scale=320:568,boxblur=6:1,scale=1080:1920[bgblur];` +
-      `[fg]scale=1080:-1[fgscaled];` +
-      `[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2[vout]`;
+        const vf =
+          `[0:v]split=2[bg][fg];` +
+          `[bg]scale=320:568,boxblur=6:1,scale=1080:1920[bgblur];` +
+          `[fg]scale=1080:-1[fgscaled];` +
+          `[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2[vout]`;
 
-    await runFfmpeg(
-      [
-        '-ss', String(scene.start_time),
-        '-t', String(duration),
-        '-i', longVideoPath,
-        '-filter_complex', vf,
-        '-map', '[vout]',
-        '-map', '0:a',
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        clipPath,
-      ],
-      `hook clip ${scene.scene_order}`
+        await runFfmpeg(
+          [
+            '-ss', String(scene.start_time),
+            '-t', String(duration),
+            '-i', longVideoPath,
+            '-filter_complex', vf,
+            '-map', '[vout]',
+            '-map', '0:a',
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            clipPath,
+          ],
+          `hook clip ${scene.scene_order}`
+        );
+        hookClipsByOrder[scene.scene_order] = clipPath;
+      })
     );
-    vertClips.push(clipPath);
   }
+  const vertClips = hookScenes.map((s) => hookClipsByOrder[s.scene_order]);
 
   const concatListPath = path.join(workDir, 'short-concat-list.txt');
   fs.writeFileSync(
