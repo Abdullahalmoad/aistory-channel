@@ -51,15 +51,15 @@ async function getSceneImage(scene, outputDir, options = {}) {
 async function fetchSceneImageWithRetry(scene) {
   let filePath = null;
   let error = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const result = await getSceneImage(scene, arguments[1]);
       filePath = result.filePath;
       break;
     } catch (err) {
       error = err.message;
-      console.warn(`Image attempt ${attempt}/2 failed for scene ${scene.scene_order}: ${err.message}`);
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+      console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 1500));
     }
   }
   return { filePath, error };
@@ -68,7 +68,7 @@ async function fetchSceneImageWithRetry(scene) {
 async function getAllSceneImages(scenes, outputDir) {
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = 6;
   const rawResults = new Array(scenes.length);
 
   for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
@@ -78,15 +78,15 @@ async function getAllSceneImages(scenes, outputDir) {
       batch.map(async (scene) => {
         let filePath = null;
         let error = null;
-        for (let attempt = 1; attempt <= 2; attempt++) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
           try {
             const result = await getSceneImage(scene, outputDir);
             filePath = result.filePath;
             break;
           } catch (err) {
             error = err.message;
-            console.warn(`Image attempt ${attempt}/2 failed for scene ${scene.scene_order}: ${err.message}`);
-            if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+            console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
+            if (attempt < 3) await new Promise((r) => setTimeout(r, 1500));
           }
         }
         return { filePath, error };
