@@ -4,16 +4,28 @@ const path = require('path');
 const { buildSrtFromScenes } = require('./srt.util');
 const { getHostAvatarPath } = require('./host.service');
 
-function runFfmpeg(args, label = 'ffmpeg') {
+function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', ['-y', ...args]);
     let stderr = '';
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGKILL');
+      reject(new Error(`${label} timed out after ${timeoutMs / 1000}s and was killed`));
+    }, timeoutMs);
     proc.stderr.on('data', (d) => (stderr += d.toString()));
     proc.on('close', (code) => {
+      if (timedOut) return;
+      clearTimeout(timer);
       if (code !== 0) {
         return reject(new Error(`${label} failed (exit ${code}):\n${stderr.slice(-2000)}`));
       }
       resolve();
+    });
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
     });
   });
 }
@@ -92,7 +104,8 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
   const silentVideoPath = path.join(workDir, 'silent-video.mp4');
   await runFfmpeg(
     ['-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', silentVideoPath],
-    'concat scenes'
+    'concat scenes',
+    300000
   );
 
   const srtPath = path.join(workDir, 'captions.srt');
@@ -130,7 +143,8 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
       '-shortest',
       outputPath,
     ],
-    'final mux'
+    'final mux',
+    1200000
   );
 
   return outputPath;
