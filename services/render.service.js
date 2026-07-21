@@ -14,7 +14,12 @@ function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
       proc.kill('SIGKILL');
       reject(new Error(`${label} timed out after ${timeoutMs / 1000}s and was killed`));
     }, timeoutMs);
-    proc.stderr.on('data', (d) => (stderr += d.toString()));
+    proc.stderr.on('data', (d) => {
+      const s = d.toString();
+      stderr += s;
+      const m = s.match(/frame=\s*(\d+).*fps=\s*([\d.]+).*speed=\s*([\d.]+)x/);
+      if (m) console.log(`    [ffmpeg ${label}] frame=${m[1]} fps=${m[2]} speed=${m[3]}x`);
+    });
     proc.on('close', (code) => {
       if (timedOut) return;
       clearTimeout(timer);
