@@ -112,22 +112,31 @@ async function runMorningPipeline(topic) {
 
   console.log(`\n=== Morning run for: "${topic}" (${jobId}) ===`);
 
+  console.time('step1_script');
   console.log('[1/6] Generating script...');
   const narrativeStyle = pickNarrativeStyle();
   const script = await generateScript(topic, { targetWords: Math.floor(1800 + Math.random() * 900), narrativeStyle });
   console.log(`  -> "${script.title}" | ${script.scenes.length} scenes | style: ${narrativeStyle}`);
 
+  console.timeEnd('step1_script');
+  console.time('step2_audio');
   console.log('[2/6] Generating narration audio...');
   const audioPath = path.join(workDir, 'narration.mp3');
   await generateNarrationAudio(script.scenes, { outputPath: audioPath });
 
+  console.timeEnd('step2_audio');
+  console.time('step3_images');
   console.log('[3/6] Fetching/generating images...');
   const imagesDir = path.join(workDir, 'images');
   const scenesWithImages = await getAllSceneImages(script.scenes, imagesDir);
 
+  console.timeEnd('step3_images');
+  console.time('step4_transcribe');
   console.log('[4/6] Transcribing narration for caption timing...');
   const { scenes: scenesWithTimestamps } = await transcribeAndAssign(audioPath, scenesWithImages);
 
+  console.timeEnd('step4_transcribe');
+  console.time('step5_render');
   console.log('[5/6] Rendering long video + Short teaser...');
   const musicPath = getRandomMusicTrack();
   const longVideoPath = path.join(workDir, 'long-video.mp4');
@@ -147,6 +156,8 @@ async function runMorningPipeline(topic) {
     outputPath: shortVideoPath,
   });
 
+  console.timeEnd('step5_render');
+  console.time('step6_upload');
   console.log('[6/6] Uploading long video now...');
   const isFirstWeekMode = process.env.FIRST_WEEK_MODE !== 'false';
   const uploadPrivacy = isFirstWeekMode ? 'private' : 'public';
@@ -161,6 +172,7 @@ async function runMorningPipeline(topic) {
     containsSyntheticMedia: true,
   });
 
+  console.timeEnd('step6_upload');
   console.log(`  -> Long video uploaded: ${longUpload.url}`);
   await notifySuccess({ title: script.title, longUrl: longUpload.url, shortUrl: '(pending, later today)', narrativeStyle });
 
