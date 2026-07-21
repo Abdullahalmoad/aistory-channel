@@ -66,8 +66,11 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
       continue;
     }
     const clipPath = path.join(workDir, `clip-${scene.scene_order}.mp4`);
+    console.log(`  -> Rendering scene ${scene.scene_order}/${scenes.length}...`);
+    const clipStart = Date.now();
     await renderSceneClip(scene, clipPath);
     clipPaths.push(clipPath);
+    console.log(`     scene ${scene.scene_order} done in ${((Date.now() - clipStart)/1000).toFixed(1)}s`);
   }
 
   const concatListPath = path.join(workDir, 'concat-list.txt');
