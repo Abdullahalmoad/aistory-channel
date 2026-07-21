@@ -45,7 +45,7 @@ function pickCaptionStyle() {
   return CAPTION_STYLES[Math.floor(Math.random() * CAPTION_STYLES.length)];
 }
 
-async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080 } = {}) {
+async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080, avatarPath = null, captionStyle = null, workDir = null } = {}) {
   const duration = Math.max(scene.end_time - scene.start_time, 0.5);
   const fps = 30;
   const totalFrames = Math.round(duration * fps);
@@ -58,12 +58,33 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080 
     `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
     `format=yuv420p`;
 
+  const inputs = [
+    '-loop', '1',
+    '-i', scene.image_file,
+    ...(avatarPath ? ['-loop', '1', '-i', avatarPath] : []),
+  ];
+
+  let videoFilter;
+  if (scene.text && workDir) {
+    const srtPath = path.join(workDir, `scene-${scene.scene_order}.srt`);
+    buildSrtFromScenes([{ start_time: 0, end_time: duration, text: scene.text }], srtPath);
+    const style = captionStyle || pickCaptionStyle();
+    const subtitleFilter = `subtitles=${srtPath.replace(/:/g, '\\:')}:force_style='${style}'`;
+    videoFilter = avatarPath
+      ? `[0:v]${zoompanFilter},${subtitleFilter}[vsub];[1:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
+      : `[0:v]${zoompanFilter},${subtitleFilter}[vout]`;
+  } else {
+    videoFilter = avatarPath
+      ? `[0:v]${zoompanFilter}[vsub];[1:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
+      : `[0:v]${zoompanFilter}[vout]`;
+  }
+
   await runFfmpeg(
     [
-      '-loop', '1',
-      '-i', scene.image_file,
+      ...inputs,
       '-t', String(duration),
-      '-vf', zoompanFilter,
+      '-filter_complex', videoFilter,
+      '-map', '[vout]',
       '-r', String(fps),
       outputPath,
     ],
@@ -84,6 +105,9 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
     return true;
   });
 
+  const avatarPath = getHostAvatarPath();
+  const captionStyle = pickCaptionStyle();
+
   const RENDER_CONCURRENCY = 4;
   const clipPathsBySceneOrder = {};
   for (let i = 0; i < validScenes.length; i += RENDER_CONCURRENCY) {
@@ -93,7 +117,7 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
       batch.map(async (scene) => {
         const clipPath = path.join(workDir, `clip-${scene.scene_order}.mp4`);
         const clipStart = Date.now();
-        await renderSceneClip(scene, clipPath);
+        await renderSceneClip(scene, clipPath, { avatarPath, captionStyle, workDir });
         clipPathsBySceneOrder[scene.scene_order] = clipPath;
         console.log(`     scene ${scene.scene_order} done in ${((Date.now() - clipStart)/1000).toFixed(1)}s`);
       })
@@ -113,46 +137,29 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
     300000
   );
 
-  const srtPath = path.join(workDir, 'captions.srt');
-  buildSrtFromScenes(scenes, srtPath);
-
-  const captionStyle = pickCaptionStyle();
-  const subtitleFilter = `subtitles=${srtPath.replace(/:/g, '\\:')}:force_style='${captionStyle}'`;
-
-  const avatarPath = getHostAvatarPath();
-
   const inputs = [
     '-i', silentVideoPath,
     '-i', audioPath,
     ...(musicPath ? ['-i', musicPath] : []),
-    ...(avatarPath ? ['-loop', '1', '-i', avatarPath] : []),
   ];
 
   const audioFilter = musicPath
-    ? `[1:a]volume=1.0[narr];[${musicPath ? 2 : 1}:a]volume=0.12[music];[narr][music]amix=inputs=2:duration=first[aout]`
+    ? `[1:a]volume=1.0[narr];[2:a]volume=0.12[music];[narr][music]amix=inputs=2:duration=first[aout]`
     : `[1:a]anull[aout]`;
-
-  const videoFilterBase = `[0:v]${subtitleFilter}[vsub]`;
-  const videoFilterFinal = avatarPath
-    ? `${videoFilterBase};[${musicPath ? 3 : 2}:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
-    : `${videoFilterBase};[vsub]null[vout]`;
 
   await runFfmpeg(
     [
       ...inputs,
-      '-filter_complex', `${videoFilterFinal};${audioFilter}`,
-      '-map', '[vout]',
+      '-filter_complex', audioFilter,
+      '-map', '0:v',
       '-map', '[aout]',
-      '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-          '-crf', '23',
-          '-threads', '0',
-          '-c:a', 'aac',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
       '-shortest',
       outputPath,
     ],
     'final mux',
-    1500000
+    120000
   );
 
   return outputPath;
