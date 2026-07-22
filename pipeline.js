@@ -45,13 +45,14 @@ async function runPipelineForTopic(topic) {
     });
 
   console.log('[4/6] Transcribing narration for caption timing...');
-  const { scenes: scenesWithTimestamps } = await transcribeAndAssign(audioPath, scenesWithImages);
+  const { scenes: scenesWithTimestamps, words } = await transcribeAndAssign(audioPath, scenesWithImages);
 
   console.log('[5/6] Rendering long video + Short teaser (this is the slow step)...');
   const musicPath = getRandomMusicTrack();
   const longVideoPath = path.join(workDir, 'long-video.mp4');
   await renderLongVideo({
     scenes: scenesWithTimestamps,
+    words,
     audioPath,
     musicPath,
     workDir: path.join(workDir, 'render-work'),
@@ -63,6 +64,7 @@ async function runPipelineForTopic(topic) {
   await renderShortTeaser({
     longVideoPath,
     scenes: scenesWithTimestamps,
+    words,
     workDir: path.join(workDir, 'short-work'),
     outputPath: shortVideoPath,
   });
@@ -133,7 +135,7 @@ async function runMorningPipeline(topic) {
   console.timeEnd('step3_images');
   console.time('step4_transcribe');
   console.log('[4/6] Transcribing narration for caption timing...');
-  const { scenes: scenesWithTimestamps } = await transcribeAndAssign(audioPath, scenesWithImages);
+  const { scenes: scenesWithTimestamps, words } = await transcribeAndAssign(audioPath, scenesWithImages);
 
   console.timeEnd('step4_transcribe');
 
@@ -149,6 +151,7 @@ async function runMorningPipeline(topic) {
   const longVideoPath = path.join(workDir, 'long-video.mp4');
   await renderLongVideo({
     scenes: scenesWithTimestamps,
+    words,
     audioPath,
     musicPath,
     workDir: path.join(workDir, 'render-work'),
@@ -159,6 +162,7 @@ async function runMorningPipeline(topic) {
   await renderShortTeaser({
     longVideoPath,
     scenes: scenesWithTimestamps,
+    words,
     workDir: path.join(workDir, 'short-work'),
     outputPath: shortVideoPath,
   });

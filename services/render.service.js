@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { buildSrtFromScenes } = require('./srt.util');
+const { buildSrtFromScenes, buildSrtFromWords } = require('./srt.util');
 const { getHostAvatarPath } = require('./host.service');
 
 function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
@@ -18,7 +18,7 @@ function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
       const s = d.toString();
       stderr += s;
       const m = s.match(/frame=\s*(\d+).*fps=\s*([\d.]+).*speed=\s*([\d.]+)x/);
-      if (m) console.log(`    [ffmpeg ${label}] frame=${m[1]} fps=${m[2]} speed=${m[3]}x`);
+      if (m) console.log(`   [ffmpeg ${label}] frame=${m[1]} fps=${m[2]} speed=${m[3]}x`);
     });
     proc.on('close', (code) => {
       if (timedOut) return;
@@ -36,18 +36,18 @@ function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
 }
 
 const CAPTION_STYLES = [
-  "FontName=Arial,FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=2,Alignment=2,MarginV=60",
-  "FontName=Verdana,FontSize=19,PrimaryColour=&H0000E5FF,OutlineColour=&H00000000,BorderStyle=3,Outline=2,Alignment=2,MarginV=70",
-  "FontName=Georgia,FontSize=21,PrimaryColour=&H00E0E0E0,OutlineColour=&H00101010,BorderStyle=1,Outline=2,Alignment=2,MarginV=55",
+  "FontName=Arial,Bold=1,FontSize=26,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=80",
+  "FontName=Verdana,Bold=1,FontSize=25,PrimaryColour=&H0000E5FF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=85",
+  "FontName=Georgia,Bold=1,FontSize=27,PrimaryColour=&H00E0E0E0,OutlineColour=&H00101010,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=75",
 ];
 
 function pickCaptionStyle() {
   return CAPTION_STYLES[Math.floor(Math.random() * CAPTION_STYLES.length)];
 }
 
-async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080, avatarPath = null, captionStyle = null, workDir = null } = {}) {
+async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080, avatarPath = null, captionStyle = null, workDir = null, words = null } = {}) {
   const duration = Math.max(scene.end_time - scene.start_time, 0.5);
-  const fps = 30;
+  const fps = 60;
   const totalFrames = Math.round(duration * fps);
   const revealSec = Math.min(0.4, duration / 3);
 
@@ -67,7 +67,23 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
   let videoFilter;
   if (scene.text && workDir) {
     const srtPath = path.join(workDir, `scene-${scene.scene_order}.srt`);
-    buildSrtFromScenes([{ start_time: 0, end_time: duration, text: scene.text }], srtPath);
+
+    const sceneWords = words
+      ? words
+          .filter((w) => w.start >= scene.start_time && w.start < scene.end_time)
+          .map((w) => ({
+            ...w,
+            start: Math.max(0, w.start - scene.start_time),
+            end: Math.min(duration, w.end - scene.start_time),
+          }))
+      : null;
+
+    if (sceneWords && sceneWords.length > 0) {
+      buildSrtFromWords(sceneWords, srtPath, 3);
+    } else {
+      buildSrtFromScenes([{ start_time: 0, end_time: duration, text: scene.text }], srtPath);
+    }
+
     const style = captionStyle || pickCaptionStyle();
     const subtitleFilter = `subtitles=${srtPath.replace(/:/g, '\\:')}:force_style='${style}'`;
     videoFilter = avatarPath
@@ -94,7 +110,7 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
   return outputPath;
 }
 
-async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPath }) {
+async function renderLongVideo({ scenes, words = null, audioPath, musicPath, workDir, outputPath }) {
   fs.mkdirSync(workDir, { recursive: true });
 
   const validScenes = scenes.filter((scene) => {
@@ -117,7 +133,7 @@ async function renderLongVideo({ scenes, audioPath, musicPath, workDir, outputPa
       batch.map(async (scene) => {
         const clipPath = path.join(workDir, `clip-${scene.scene_order}.mp4`);
         const clipStart = Date.now();
-        await renderSceneClip(scene, clipPath, { avatarPath, captionStyle, workDir });
+        await renderSceneClip(scene, clipPath, { avatarPath, captionStyle, workDir, words });
         clipPathsBySceneOrder[scene.scene_order] = clipPath;
         console.log(`     scene ${scene.scene_order} done in ${((Date.now() - clipStart)/1000).toFixed(1)}s`);
       })

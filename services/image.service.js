@@ -4,9 +4,10 @@ const https = require('https');
 const { spawn } = require('child_process');
 
 const STYLE_SUFFIX =
-  ', flat vector illustration, minimalist flat design, simple 2D vector art, ' +
-  'thin clean outlines, limited flat color palette, plain simple background, ' +
-  'no text, no watermark, no signature';
+  ', consistent character design, digital illustration style, bold clean linework, ' +
+  'flat cel-shaded coloring, moody atmospheric lighting, dark muted color palette, ' +
+  'cinematic composition, sharp focus, high detail, professional storytelling illustration, ' +
+  'no text, no watermark, no signature, no blur';
 
 function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
@@ -30,6 +31,17 @@ function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
   });
 }
 
+function isValidImage(filePath) {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    if (buffer.length < 25000) return false;
+    if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function getSceneImage(scene, outputDir, options = {}) {
   if (!scene.image_prompt) {
     throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
@@ -45,24 +57,13 @@ async function getSceneImage(scene, outputDir, options = {}) {
   }
 
   await downloadToFile(url, destPath);
-  return { source: 'pollinations', filePath: destPath };
-}
 
-async function fetchSceneImageWithRetry(scene) {
-  let filePath = null;
-  let error = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const result = await getSceneImage(scene, arguments[1]);
-      filePath = result.filePath;
-      break;
-    } catch (err) {
-      error = err.message;
-      console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
-      if (attempt < 3) await new Promise((r) => setTimeout(r, 1500));
-    }
+  if (!isValidImage(destPath)) {
+    try { fs.unlinkSync(destPath); } catch {}
+    throw new Error(`Image failed quality check for scene ${scene.scene_order}`);
   }
-  return { filePath, error };
+
+  return { source: 'pollinations', filePath: destPath };
 }
 
 async function getAllSceneImages(scenes, outputDir) {
@@ -76,7 +77,7 @@ async function getAllSceneImages(scenes, outputDir) {
     console.log(`  -> Fetching images ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length}...`);
     const batchResults = await Promise.all(
       batch.map(async (scene, idx) => {
-      await new Promise((r) => setTimeout(r, idx * 400));
+        await new Promise((r) => setTimeout(r, idx * 400));
         let filePath = null;
         let error = null;
         for (let attempt = 1; attempt <= 3; attempt++) {
@@ -88,9 +89,9 @@ async function getAllSceneImages(scenes, outputDir) {
             error = err.message;
             console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
             if (attempt < 3) {
-            const backoff = Math.min(8000, 1500 * Math.pow(2, attempt - 1));
-            await new Promise((r) => setTimeout(r, backoff));
-          }
+              const backoff = Math.min(8000, 1500 * Math.pow(2, attempt - 1));
+              await new Promise((r) => setTimeout(r, backoff));
+            }
           }
         }
         return { filePath, error };
