@@ -216,7 +216,7 @@ async function uploadPendingShort(statePath) {
 }
 
 async function runDailyPipeline() {
-  const topic = getNextTopic();
+  const topic = await getNextTopic();
   try {
     return await runPipelineForTopic(topic);
   } catch (err) {
@@ -227,7 +227,7 @@ async function runDailyPipeline() {
 }
 
 async function runDailyWithStagger() {
-  const topic = getNextTopic();
+  const topic = await getNextTopic();
   let morning;
   try {
     morning = await runMorningPipeline(topic);
