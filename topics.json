@@ -59,6 +59,46 @@
     {
       "topic": "Deep sea creatures and unexplained ocean phenomena",
       "used": true
+    },
+    {
+      "topic": "The Disappearance of the Sodder Children: a Christmas Eve fire and a mystery that has endured for decades",
+      "used": true
+    },
+    {
+      "topic": "The Taos Hum: a low-frequency noise that has plagued a New Mexico town for years with no explanation",
+      "used": false
+    },
+    {
+      "topic": "The Taman Shud Case: a cryptic coded message and an unidentified body found on an Australian beach",
+      "used": false
+    },
+    {
+      "topic": "The Villisca Ax Murder House: a century-old unsolved murder mystery in a small Iowa town",
+      "used": false
+    },
+    {
+      "topic": "The Moberly-Jourdain Incident: a ghostly encounter by two British women in a French garden",
+      "used": false
+    },
+    {
+      "topic": "The Disappearance of Steven Damman: a toddler who vanished from a supermarket in 1955",
+      "used": false
+    },
+    {
+      "topic": "The Phantom Time Hypothesis: a theory that suggests a period of time may have been lost from historical records",
+      "used": false
+    },
+    {
+      "topic": "The Bloop: a mysterious low-frequency sound detected by the National Oceanic and Atmospheric Administration",
+      "used": false
+    },
+    {
+      "topic": "The Mary Celeste: a ship found adrift with no signs of its crew on board, sparking theories of mutiny and sea monsters",
+      "used": false
+    },
+    {
+      "topic": "The Kelly-Hopkinsville Encounter: a reported UFO sighting and alien encounter in rural Kentucky",
+      "used": false
     }
   ]
 }
