@@ -4,11 +4,11 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
-const DEFAULT_TARGET_WORDS = 600;
+const DEFAULT_TARGET_WORDS = 1800;
 
-const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel that publishes short, punchy "Did you know" and "What if" videos about science, history, and nature - narrated over real photos and real stock video footage (not AI-illustrated animation, not cartoons).
+const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel that publishes long-form documentary-style videos about forbidden places, unexplained mysteries, and strange true stories - narrated over simple flat-vector illustrated animation (like an animated explainer video), not photorealistic footage.
 
-Your job: turn the given topic into a full narration script split into short scenes, suitable for text-to-speech narration and scene-by-scene real-footage visuals.
+Your job: turn the given topic into a full long-form narration script split into short scenes, suitable for text-to-speech narration and scene-by-scene illustrated visuals.
 
 Respond with STRICT JSON only. No markdown code fences, no commentary before or after the JSON.
 
@@ -17,34 +17,33 @@ Exact shape required:
   "title": "Compelling, clickable YouTube title (avoid excessive clickbait, keep it honest)",
   "description": "2-4 sentence YouTube description including a natural mention of the topic, plus 3-5 relevant hashtags at the end",
   "tags": ["tag1", "tag2", "..."],
-  "thumbnail_text": "2-4 punchy ALL CAPS words for a YouTube thumbnail overlay, e.g. MIND BLOWN or NOT REAL, maximum curiosity, no punctuation",
-  "thumbnail_image_prompt": "Short, concrete English description of ONE real-world visual moment for use as the thumbnail background, the single most striking or curious image related to the topic",
-  "estimated_word_count": 600,
+    "thumbnail_text": "2-4 punchy ALL CAPS words for a YouTube thumbnail overlay, e.g. NINE DEAD or STILL MISSING, maximum curiosity, no punctuation",
+    "thumbnail_image_prompt": "Short, concrete English description of ONE dramatic high-impact visual moment from the story for use as a thumbnail background image, the single most shocking or mysterious image from the story",
+  "estimated_word_count": 1800,
   "scenes": [
     {
       "scene_order": 1,
       "text": "1-3 sentences of narration for this scene only",
       "is_hook": true or false,
-      "image_prompt": "Short, concrete English description of a REAL, PHOTOGRAPHABLE subject or scene that a stock photo/video search would actually return results for, e.g. 'a scientist looking through a microscope' or 'the pyramids of Giza at sunset' or 'a blue whale swimming underwater'. Describe real objects, real places, real animals, or real everyday scenes only - never fictional, never abstract, never text/words in the image itself."
+      "image_prompt": "Short, concrete English description of what should be illustrated for this scene (subject + setting only, e.g. 'a volcanic island rising out of the ocean with steam rising'). Do NOT include art-style words - those are added automatically."
     }
   ]
 }
 
 Rules:
-- Each scene should cover about 4-8 seconds of spoken narration (1-2 short sentences).
-- Total scenes should be enough to reach the target word count given in the user message (typically 10-25 scenes for a 2-5 minute video).
-- image_prompt must describe something that genuinely exists and could be found as a real photo or real video clip - avoid describing imagined recreations of specific unnamed people; prefer general real subjects (nature, science equipment, landmarks, animals, everyday human activity).
-- Mark is_hook = true on exactly 1 to 3 scenes that are the MOST surprising or curiosity-driving moments in the whole script (these will later be cut into a short vertical teaser). Prefer the opening hook and the single biggest reveal.
+- Each scene should cover about 5-12 seconds of spoken narration (1-3 short sentences).
+- Total scenes should be enough to reach the target word count given in the user message (typically 35-55 scenes for a 10+ minute video).
+- image_prompt must describe a single clear visual concept simple enough to draw as a flat 2D illustration (one main subject, one setting, no text/words in the image itself).
+- Mark is_hook = true on exactly 3 to 6 scenes that are the MOST dramatic, shocking, or curiosity-driving moments in the whole script (these will later be cut into a short vertical teaser). Prefer scenes from the opening hook and from the biggest twist/climax. Hook scenes do not need to be contiguous, but note them clearly.
 - The narration should read naturally when spoken aloud (avoid text formatting like bullet points, avoid emoji in the "text" field).
-- The LAST scene must be a genuine closing thought in your own voice (e.g. why this fact matters, what it implies, a related question left open) - NOT a recap of the plot. This is required editorial content, not filler.
+- The LAST 1-2 scenes must be a genuine closing analysis/commentary in your own voice (e.g. why the case remains unexplained, what the leading theories disagree on, what it says about human psychology) - NOT a recap of the plot. This is required editorial content, not filler.
 - The response MUST be valid JSON, parsable directly with JSON.parse, with no trailing commas.`;
 
 const NARRATIVE_STYLES = [
-  'Open with a bold "Did you know" hook fact, then build up supporting facts that make it even more surprising.',
-  'Frame it as a "What if" hypothetical scenario, walking through what would realistically happen step by step.',
-  'Structure it as a rapid countdown of surprising facts about the topic, saving the most shocking one for last.',
-  'Open with a common misconception people believe, then reveal the surprising truth with supporting facts.',
-  'Tell it as a chain of cause-and-effect: each surprising fact leads naturally into the next one.',
+  'Tell it in chronological order, like a documentary retelling events as they happened.',
+  'Frame it as an investigation: start from the strange discovery/clue, then work backward through what investigators found.',
+  'Structure it as a countdown of the most disturbing facts about the topic, saving the strangest for last.',
+  'Open with the unresolved question the case leaves behind, then tell the story, then return to that question at the end.',
 ];
 
 function pickNarrativeStyle() {
@@ -52,15 +51,14 @@ function pickNarrativeStyle() {
 }
 
 async function generateScript(topic, options = {}) {
-  const { targetWords = DEFAULT_TARGET_WORDS } = options;
+  const { targetWords = DEFAULT_TARGET_WORDS, narrativeStyle = pickNarrativeStyle() } = options;
 
   const userPrompt = `Topic: ${topic}
-Target narration word count: approximately ${targetWords} words (this must produce a 2-5 minute spoken video).
+Target narration word count: approximately ${targetWords} words (this must produce a 10+ minute spoken video).
 Language: English.
-Choose the narrative structure that best fits THIS specific topic's content and tone. Pick exactly ONE of the following approaches (do not blend them, do not default to the same one every time - base your choice on what suits this fact/topic best):
-${NARRATIVE_STYLES.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+Narrative structure for THIS video (vary this across videos, don't default to the same shape every time): ${narrativeStyle}
 
-Return the full script now as strict JSON matching the required shape exactly.`;
+Return the full script now as strict JSON, matching the required shape exactly.`;
 
   const completion = await groq.chat.completions.create({
     model: MODEL,
@@ -100,10 +98,9 @@ Return the full script now as strict JSON matching the required shape exactly.`;
   const hookCount = parsed.scenes.filter((s) => s.is_hook).length;
   if (hookCount === 0) {
     parsed.scenes[0].is_hook = true;
-    if (parsed.scenes.length > 1) {
-      const lastIdx = parsed.scenes.length - 1;
-      parsed.scenes[lastIdx].is_hook = true;
-    }
+    if (parsed.scenes.length > 1) parsed.scenes[1].is_hook = true;
+    const lastIdx = parsed.scenes.length - 1;
+    parsed.scenes[lastIdx].is_hook = true;
   }
 
   const actualWordCount = parsed.scenes.reduce(
@@ -117,8 +114,6 @@ Return the full script now as strict JSON matching the required shape exactly.`;
     title: parsed.title || topic,
     description: parsed.description || '',
     tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-    thumbnail_text: parsed.thumbnail_text || '',
-    thumbnail_image_prompt: parsed.thumbnail_image_prompt || null,
     estimated_word_count: actualWordCount,
     scenes: proofreadScenesResult,
   };
@@ -130,7 +125,7 @@ Your ONLY job: fix spelling mistakes, typos, and grammar errors. Do NOT change t
 
 If a line is already correct, return it completely unchanged.
 
-Respond with STRICT JSON only, no markdown code fences, no commentary. Exact shape:
+Respond with STRICT JSON only, no markdown fences, no commentary. Exact shape:
 {
   "lines": ["corrected line 1", "corrected line 2", "..."]
 }

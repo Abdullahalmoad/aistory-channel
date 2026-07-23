@@ -7,6 +7,8 @@ const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 const TOPICS_PATH = path.join(__dirname, '..', 'topics.json');
 
+const CATEGORIES = ['science and space', 'history and ancient civilizations', 'nature and animals', 'technology', 'the human body and mind'];
+
 function loadTopics() {
   const raw = fs.readFileSync(TOPICS_PATH, 'utf-8');
   return JSON.parse(raw);
@@ -18,12 +20,13 @@ function saveTopics(data) {
 
 async function generateNewTopics(existingTopics, count = 10) {
   const existingList = existingTopics.map((t) => `- ${t.topic}`).join('\n');
-  const prompt = `You generate topic ideas for a YouTube channel about real unsolved mysteries, disappearances, strange true stories, and unexplained phenomena (similar style to true crime / paranormal documentary channels).
+  const categoryList = CATEGORIES.join(', ');
+  const prompt = `You generate topic ideas for a YouTube channel that makes short "Did you know" and "What if" videos about ${categoryList}.
 
 Here are topics already used - do NOT repeat these or anything too similar:
 ${existingList}
 
-Generate ${count} brand new topic ideas, each a single sentence describing a real (or real-sounding) mysterious/unsolved story, in the same style as the examples above. Return ONLY a JSON array of strings, nothing else, no markdown formatting.`;
+Generate ${count} brand new topic ideas, mixing across all the categories above (not just one). Each topic should be a single sentence describing one specific, genuinely surprising, verifiable fact or "what if" scenario suitable for a 2-4 minute video - specific enough to research and script, not vague. Return ONLY a JSON array of strings, nothing else, no markdown formatting.`;
 
   const completion = await groq.chat.completions.create({
     model: MODEL,

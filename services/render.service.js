@@ -4,6 +4,8 @@ const path = require('path');
 const { buildSrtFromScenes, buildSrtFromWords } = require('./srt.util');
 const { getHostAvatarPath } = require('./host.service');
 
+const TRANSITION_DURATION = 0.4;
+
 function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', ['-y', ...args]);
@@ -45,21 +47,31 @@ function pickCaptionStyle() {
   return CAPTION_STYLES[Math.floor(Math.random() * CAPTION_STYLES.length)];
 }
 
-async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080, avatarPath = null, captionStyle = null, workDir = null, words = null } = {}) {
-  const duration = Math.max(scene.end_time - scene.start_time, 0.5);
+async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080, avatarPath = null, captionStyle = null, workDir = null, words = null, extraTail = 0 } = {}) {
+  const baseDuration = Math.max(scene.end_time - scene.start_time, 0.5);
+  const duration = baseDuration + extraTail;
   const fps = 60;
   const totalFrames = Math.round(duration * fps);
-  const revealSec = Math.min(0.4, duration / 3);
+  const revealSec = Math.min(0.4, baseDuration / 3);
+  const isVideo = Boolean(scene.is_video);
 
-  const zoompanFilter =
-    `scale=${Math.round(width * 1.3)}:${Math.round(height * 1.3)},` +
-    `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.08-0.08*on/${Math.round(revealSec * fps)},min(zoom+0.0007,1.15))':` +
-    `d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
-    `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
-    `format=yuv420p`;
+  let baseFilter;
+  if (isVideo) {
+    baseFilter =
+      `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
+      `zoompan=z='min(zoom+0.0006,1.1)':d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
+      `fade=t=in:st=0:d=${revealSec}:alpha=0,format=yuv420p`;
+  } else {
+    baseFilter =
+      `scale=${Math.round(width * 1.3)}:${Math.round(height * 1.3)}:force_original_aspect_ratio=increase,crop=${Math.round(width * 1.3)}:${Math.round(height * 1.3)},` +
+      `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.08-0.08*on/${Math.round(revealSec * fps)},min(zoom+0.0007,1.15))':` +
+      `d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
+      `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
+      `format=yuv420p`;
+  }
 
   const inputs = [
-    '-loop', '1',
+    ...(isVideo ? ['-stream_loop', '-1'] : ['-loop', '1']),
     '-i', scene.image_file,
     ...(avatarPath ? ['-loop', '1', '-i', avatarPath] : []),
   ];
@@ -74,25 +86,25 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
           .map((w) => ({
             ...w,
             start: Math.max(0, w.start - scene.start_time),
-            end: Math.min(duration, w.end - scene.start_time),
+            end: Math.min(baseDuration, w.end - scene.start_time),
           }))
       : null;
 
     if (sceneWords && sceneWords.length > 0) {
       buildSrtFromWords(sceneWords, srtPath, 3);
     } else {
-      buildSrtFromScenes([{ start_time: 0, end_time: duration, text: scene.text }], srtPath);
+      buildSrtFromScenes([{ start_time: 0, end_time: baseDuration, text: scene.text }], srtPath);
     }
 
     const style = captionStyle || pickCaptionStyle();
     const subtitleFilter = `subtitles=${srtPath.replace(/:/g, '\\:')}:force_style='${style}'`;
     videoFilter = avatarPath
-      ? `[0:v]${zoompanFilter},${subtitleFilter}[vsub];[1:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
-      : `[0:v]${zoompanFilter},${subtitleFilter}[vout]`;
+      ? `[0:v]${baseFilter},${subtitleFilter}[vsub];[1:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
+      : `[0:v]${baseFilter},${subtitleFilter}[vout]`;
   } else {
     videoFilter = avatarPath
-      ? `[0:v]${zoompanFilter}[vsub];[1:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
-      : `[0:v]${zoompanFilter}[vout]`;
+      ? `[0:v]${baseFilter}[vsub];[1:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
+      : `[0:v]${baseFilter}[vout]`;
   }
 
   await runFfmpeg(
@@ -102,12 +114,28 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
       '-filter_complex', videoFilter,
       '-map', '[vout]',
       '-r', String(fps),
+      '-c:v', 'libx264',
+      '-pix_fmt', 'yuv420p',
       outputPath,
     ],
     `scene ${scene.scene_order} render`
   );
 
-  return outputPath;
+  return duration;
+}
+
+function buildXfadeChain(n, transitionDuration, renderedDurations) {
+  let filter = '';
+  let prevLabel = '0:v';
+  let cumulative = renderedDurations[0];
+  for (let i = 1; i < n; i++) {
+    const offset = Math.max(0, cumulative - transitionDuration);
+    const outLabel = i === n - 1 ? 'vout' : `vx${i}`;
+    filter += `[${prevLabel}][${i}:v]xfade=transition=fade:duration=${transitionDuration}:offset=${offset.toFixed(3)}[${outLabel}];`;
+    cumulative = cumulative + renderedDurations[i] - transitionDuration;
+    prevLabel = outLabel;
+  }
+  return filter.replace(/;$/, '');
 }
 
 async function renderLongVideo({ scenes, words = null, audioPath, musicPath, workDir, outputPath }) {
@@ -126,32 +154,50 @@ async function renderLongVideo({ scenes, words = null, audioPath, musicPath, wor
 
   const RENDER_CONCURRENCY = 4;
   const clipPathsBySceneOrder = {};
+  const renderedDurationBySceneOrder = {};
+
   for (let i = 0; i < validScenes.length; i += RENDER_CONCURRENCY) {
     const batch = validScenes.slice(i, i + RENDER_CONCURRENCY);
     console.log(`  -> Rendering scenes ${i + 1}-${Math.min(i + RENDER_CONCURRENCY, validScenes.length)}/${validScenes.length}...`);
     await Promise.all(
-      batch.map(async (scene) => {
+      batch.map(async (scene, batchIdx) => {
+        const globalIdx = i + batchIdx;
+        const isLast = globalIdx === validScenes.length - 1;
+        const extraTail = isLast ? 0 : TRANSITION_DURATION;
         const clipPath = path.join(workDir, `clip-${scene.scene_order}.mp4`);
         const clipStart = Date.now();
-        await renderSceneClip(scene, clipPath, { avatarPath, captionStyle, workDir, words });
+        const renderedDuration = await renderSceneClip(scene, clipPath, { avatarPath, captionStyle, workDir, words, extraTail });
         clipPathsBySceneOrder[scene.scene_order] = clipPath;
-        console.log(`     scene ${scene.scene_order} done in ${((Date.now() - clipStart)/1000).toFixed(1)}s`);
+        renderedDurationBySceneOrder[scene.scene_order] = renderedDuration;
+        console.log(`     scene ${scene.scene_order} done in ${((Date.now() - clipStart) / 1000).toFixed(1)}s`);
       })
     );
   }
-  const clipPaths = validScenes.map((s) => clipPathsBySceneOrder[s.scene_order]);
 
-  const concatListPath = path.join(workDir, 'concat-list.txt');
-  fs.writeFileSync(
-    concatListPath,
-    clipPaths.map((p) => `file '${path.resolve(p)}'`).join('\n')
-  );
+  const clipPaths = validScenes.map((s) => clipPathsBySceneOrder[s.scene_order]);
+  const renderedDurations = validScenes.map((s) => renderedDurationBySceneOrder[s.scene_order]);
+
   const silentVideoPath = path.join(workDir, 'silent-video.mp4');
-  await runFfmpeg(
-    ['-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', silentVideoPath],
-    'concat scenes',
-    300000
-  );
+
+  if (clipPaths.length === 1) {
+    fs.copyFileSync(clipPaths[0], silentVideoPath);
+  } else {
+    const inputArgs = clipPaths.flatMap((p) => ['-i', p]);
+    const xfadeFilter = buildXfadeChain(clipPaths.length, TRANSITION_DURATION, renderedDurations);
+    await runFfmpeg(
+      [
+        ...inputArgs,
+        '-filter_complex', xfadeFilter,
+        '-map', '[vout]',
+        '-r', '60',
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        silentVideoPath,
+      ],
+      'crossfade concat',
+      600000
+    );
+  }
 
   const inputs = [
     '-i', silentVideoPath,
