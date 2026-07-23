@@ -4,7 +4,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
-const DEFAULT_TARGET_WORDS = 600;
+const DEFAULT_TARGET_WORDS = 750;
 
 const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel that publishes short, punchy "Did you know" and "What if" videos about science, history, and nature - narrated over real photos and real stock video footage (not AI-illustrated animation, not cartoons).
 
@@ -37,6 +37,7 @@ Rules:
 - Mark is_hook = true on exactly 1 to 3 scenes that are the MOST surprising or curiosity-driving moments in the whole script (these will later be cut into a short vertical teaser). Prefer the opening hook and the single biggest reveal.
 - The narration should read naturally when spoken aloud (avoid text formatting like bullet points, avoid emoji in the "text" field).
 - The LAST scene must be a genuine closing thought in your own voice (e.g. why this fact matters, what it implies, a related question left open) - NOT a recap of the plot. This is required editorial content, not filler.
+- If the topic is a ranked/superlative list of N items (e.g. "Top 10 X", "10 strangest facts about Y", "the N most Z"), you MUST cover ALL N items in order (counting down or up as appropriate), one item per scene - scale the scene count up accordingly (often 12-18 scenes) rather than staying capped low, and never skip or cut the list short. Each item's image_prompt must depict a REAL, SPECIFIC example of that exact item (a real named planet, animal, person, place, or fact) - never a generic filler visual.
 - The response MUST be valid JSON, parsable directly with JSON.parse, with no trailing commas.`;
 
 const NARRATIVE_STYLES = [
