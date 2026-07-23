@@ -4,9 +4,19 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
-const DEFAULT_TARGET_WORDS = 750;
+const NARRATION_WPM = 145;
+const MIN_TARGET_WORDS = 1000; // ~7 minutes
+const MAX_TARGET_WORDS = 2200; // ~15 minutes
 
-const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel that publishes short, punchy "Did you know" and "What if" videos about science, history, and nature - narrated over real photos and real stock video footage (not AI-illustrated animation, not cartoons).
+function pickTargetWords(topic) {
+  const isListTopic = /d/.test(topic);
+  const mid = Math.round((MIN_TARGET_WORDS + MAX_TARGET_WORDS) / 2);
+  const rangeStart = isListTopic ? mid : MIN_TARGET_WORDS;
+  const rangeEnd = isListTopic ? MAX_TARGET_WORDS : mid + Math.round((MAX_TARGET_WORDS - mid) * 0.3);
+  return Math.round(rangeStart + Math.random() * (rangeEnd - rangeStart));
+}
+
+const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel that publishes "Did you know", "What if", and ranked list videos about science, history, and nature - video length varies naturally by topic, roughly 7 to 15 minutes - narrated over real photos and real stock video footage (not AI-illustrated animation, not cartoons).
 
 Your job: turn the given topic into a full narration script split into short scenes, suitable for text-to-speech narration and scene-by-scene real-footage visuals.
 
@@ -31,10 +41,10 @@ Exact shape required:
 }
 
 Rules:
-- Each scene should cover about 4-8 seconds of spoken narration (1-2 short sentences).
-- Total scenes should be enough to reach the target word count given in the user message (typically 10-25 scenes for a 2-5 minute video).
+- Each scene should cover about 8-15 seconds of spoken narration (2-4 sentences).
+- Total scenes should be enough to reach the target word count given in the user message - do not artificially cap the scene count, let it scale naturally with the target word count (this channel's videos run roughly 7-15 minutes depending on the topic).
 - image_prompt must describe something that genuinely exists and could be found as a real photo or real video clip - avoid describing imagined recreations of specific unnamed people; prefer general real subjects (nature, science equipment, landmarks, animals, everyday human activity).
-- Mark is_hook = true on exactly 1 to 3 scenes that are the MOST surprising or curiosity-driving moments in the whole script (these will later be cut into a short vertical teaser). Prefer the opening hook and the single biggest reveal.
+- Mark is_hook = true on roughly 2 to 5 scenes (scale with video length) that are the MOST surprising or curiosity-driving moments in the whole script (these will later be cut into a short vertical teaser). Prefer the opening hook and the single biggest reveal.
 - The narration should read naturally when spoken aloud (avoid text formatting like bullet points, avoid emoji in the "text" field).
 - The LAST scene must be a genuine closing thought in your own voice (e.g. why this fact matters, what it implies, a related question left open) - NOT a recap of the plot. This is required editorial content, not filler.
 - If the topic is a ranked/superlative list of N items (e.g. "Top 10 X", "10 strangest facts about Y", "the N most Z"), you MUST cover ALL N items in order (counting down or up as appropriate), one item per scene - scale the scene count up accordingly (often 12-18 scenes) rather than staying capped low, and never skip or cut the list short. Each item's image_prompt must depict a REAL, SPECIFIC example of that exact item (a real named planet, animal, person, place, or fact) - never a generic filler visual.
@@ -53,10 +63,10 @@ function pickNarrativeStyle() {
 }
 
 async function generateScript(topic, options = {}) {
-  const { targetWords = DEFAULT_TARGET_WORDS } = options;
+  const { targetWords = pickTargetWords(topic) } = options;
 
   const userPrompt = `Topic: ${topic}
-Target narration word count: approximately ${targetWords} words (this must produce a 2-5 minute spoken video).
+Target narration word count: approximately ${targetWords} words (~${Math.round(targetWords / NARRATION_WPM)} minutes of spoken video - videos on this channel run 7 to 15 minutes depending on the topic).
 Language: English.
 Choose the narrative structure that best fits THIS specific topic's content and tone. Pick exactly ONE of the following approaches (do not blend them, do not default to the same one every time - base your choice on what suits this fact/topic best):
 ${NARRATIVE_STYLES.map((s, i) => `${i + 1}. ${s}`).join('\n')}
