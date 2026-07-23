@@ -1,7 +1,7 @@
 const https = require('https');
 
-const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || '').trim();
 
 function sendMessage(text) {
   return new Promise((resolve) => {
@@ -9,7 +9,10 @@ function sendMessage(text) {
       console.warn('Telegram not configured - skipping notification:', text);
       return resolve();
     }
-    const payload = JSON.stringify({ chat_id: CHAT_ID, text, parse_mode: 'HTML' });
+    const payload = Buffer.from(
+      JSON.stringify({ chat_id: CHAT_ID, text, parse_mode: 'HTML' }),
+      'utf-8'
+    );
     const req = https.request(
       {
         hostname: 'api.telegram.org',
