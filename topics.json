@@ -1,24 +1,104 @@
 {
   "topics": [
-    { "topic": "Did you know honey never spoils - archaeologists found 3000-year-old honey in Egyptian tombs that was still edible", "used": false },
-    { "topic": "What if Earth had two moons instead of one - how tides and nights would change", "used": false },
-    { "topic": "Octopuses have three hearts and blue blood, and two of the hearts stop beating when they swim", "used": false },
-    { "topic": "The Great Wall of China is not actually visible from space with the naked eye, despite the popular myth", "used": false },
-    { "topic": "What if humans could photosynthesize like plants - how our bodies and daily lives would change", "used": false },
-    { "topic": "A day on Venus is longer than its entire year because of how slowly it rotates", "used": false },
-    { "topic": "Ancient Romans used urine as a mouthwash and teeth whitener because of its ammonia content", "used": false },
-    { "topic": "What if the dinosaurs had never gone extinct - how mammals and humans might have evolved differently", "used": false },
-    { "topic": "Bananas are naturally slightly radioactive because of their potassium content", "used": false },
-    { "topic": "The human brain generates enough electricity to power a small lightbulb while you sleep", "used": false },
-    { "topic": "What if the Library of Alexandria had never burned down - how much ancient knowledge we might still have", "used": false },
-    { "topic": "Sharks have been on Earth longer than trees, existing before trees ever evolved", "used": false },
-    { "topic": "What if you could survive a fall from any height using the right landing technique - the physics of it", "used": false },
-    { "topic": "The inventor of the Pringles can was buried in one after he passed away, per his own request", "used": false },
-    { "topic": "Some species of jellyfish are biologically immortal and can reverse their aging process", "used": false },
-    { "topic": "What if the internet suddenly disappeared for one full week - how daily life and the economy would react", "used": false },
-    { "topic": "Vikings never actually wore horned helmets - that image was invented by 19th century artists", "used": false },
-    { "topic": "A single bolt of lightning is five times hotter than the surface of the sun", "used": false },
-    { "topic": "What if you dug a hole straight through the Earth and jumped in - where you would actually end up", "used": false },
-    { "topic": "Wombat poop is cube-shaped, and scientists only recently figured out how their intestines do it", "used": false }
+    {
+      "topic": "The Dyatlov Pass Incident: nine hikers who died mysteriously in Russia",
+      "used": true
+    },
+    {
+      "topic": "The Bermuda Triangle: real disappearances and theories",
+      "used": true
+    },
+    {
+      "topic": "The Skinwalker Ranch phenomena, according to witnesses",
+      "used": true
+    },
+    {
+      "topic": "The Black-Eyed Children urban legend and where it came from",
+      "used": true
+    },
+    {
+      "topic": "The Mothman sightings before the Silver Bridge collapse",
+      "used": true
+    },
+    {
+      "topic": "The Sallie House haunting case",
+      "used": true
+    },
+    {
+      "topic": "Real unsolved disappearances in national parks",
+      "used": true
+    },
+    {
+      "topic": "The Winchester Mystery House and why it was built that way",
+      "used": true
+    },
+    {
+      "topic": "The Hinterkaifeck murders: an unsolved German farmhouse mystery",
+      "used": true
+    },
+    {
+      "topic": "Strange true stories of people who received warnings in dreams",
+      "used": true
+    },
+    {
+      "topic": "The Toynbee tiles mystery embedded in US city streets",
+      "used": true
+    },
+    {
+      "topic": "The Max Headroom broadcast signal intrusion incident",
+      "used": true
+    },
+    {
+      "topic": "The Overtoun Bridge dog jumping phenomenon in Scotland",
+      "used": true
+    },
+    {
+      "topic": "The Isdal Woman: an unidentified body and a decades-old mystery",
+      "used": true
+    },
+    {
+      "topic": "Deep sea creatures and unexplained ocean phenomena",
+      "used": true
+    },
+    {
+      "topic": "The Disappearance of the Sodder Children: a Christmas Eve fire and a mystery that has endured for decades",
+      "used": true
+    },
+    {
+      "topic": "The Taos Hum: a low-frequency noise that has plagued a New Mexico town for years with no explanation",
+      "used": true
+    },
+    {
+      "topic": "The Taman Shud Case: a cryptic coded message and an unidentified body found on an Australian beach",
+      "used": true
+    },
+    {
+      "topic": "The Villisca Ax Murder House: a century-old unsolved murder mystery in a small Iowa town",
+      "used": true
+    },
+    {
+      "topic": "The Moberly-Jourdain Incident: a ghostly encounter by two British women in a French garden",
+      "used": false
+    },
+    {
+      "topic": "The Disappearance of Steven Damman: a toddler who vanished from a supermarket in 1955",
+      "used": false
+    },
+    {
+      "topic": "The Phantom Time Hypothesis: a theory that suggests a period of time may have been lost from historical records",
+      "used": false
+    },
+    {
+      "topic": "The Bloop: a mysterious low-frequency sound detected by the National Oceanic and Atmospheric Administration",
+      "used": false
+    },
+    {
+      "topic": "The Mary Celeste: a ship found adrift with no signs of its crew on board, sparking theories of mutiny and sea monsters",
+      "used": false
+    },
+    {
+      "topic": "The Kelly-Hopkinsville Encounter: a reported UFO sighting and alien encounter in rural Kentucky",
+      "used": false
+    }
   ]
 }
