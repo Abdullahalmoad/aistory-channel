@@ -72,12 +72,40 @@ async function getSceneImageFromAI(scene, outputDir, options = {}) {
   return { filePath: destPath, isVideo: false, source: 'pollinations' };
 }
 
+// Search suffixes tried in order for "concept" scenes (abstract ideas, internal
+// processes, prehistoric moments with no real photos) - aims to match the flat,
+// hand-drawn 2D animated-explainer clips stock sites tag under these terms,
+// instead of forcing a real photo onto an idea that isn't photographable.
+const CONCEPT_QUERY_SUFFIXES = [
+  'flat 2d animation',
+  'animated explainer motion graphics',
+  'animated illustration',
+];
+
+function buildConceptQuery(basePrompt, attempt) {
+  const suffix = CONCEPT_QUERY_SUFFIXES[attempt % CONCEPT_QUERY_SUFFIXES.length];
+  return `${basePrompt}, ${suffix}`;
+}
+
 async function getSceneMedia(scene, outputDir) {
   if (!scene.image_prompt) {
     throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
   }
 
   const preferVideo = true; // videos are the primary media for this channel - always try a real video clip first, only fall back to a photo when no matching video exists
+
+  if (scene.scene_type === 'concept') {
+    for (let attempt = 0; attempt < CONCEPT_QUERY_SUFFIXES.length; attempt++) {
+      const query = buildConceptQuery(scene.image_prompt, attempt);
+      const animated = await fetchRealMedia(query, outputDir, scene.scene_order, preferVideo);
+      if (animated && animated.isVideo && isValidVideo(animated.filePath)) {
+        return animated;
+      }
+    }
+    // No matching animated clip found - fall through to the normal search below,
+    // and ultimately to AI image generation, which still handles concept scenes fine.
+  }
+
   const real = await fetchRealMedia(scene.image_prompt, outputDir, scene.scene_order, preferVideo);
   if (real && (real.isVideo ? isValidVideo(real.filePath) : isValidImage(real.filePath))) {
     return real;

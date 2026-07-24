@@ -31,12 +31,14 @@ Exact shape required:
       "scene_order": 1,
       "text": "1-2 short sentences of narration for this scene only (aim for no more than about 10 seconds spoken aloud)",
       "is_hook": true or false,
-      "image_prompt": "Short, concrete English description of a REAL, PHOTOGRAPHABLE subject or scene that a stock photo/video search would actually return results for, e.g. 'a foggy forest at night' or 'an abandoned house at dusk' or 'a police car with flashing lights' or 'a handwritten letter on a desk'. Describe real objects, real places, real weather, or real generic scenes that fit the mood - never fictional, never abstract, never text/words in the image itself, and never a recreation of a specific unnamed real person's face."
+      "scene_type": "real or concept - see rules below",
+      "image_prompt": "Short, concrete English description of the visual for this scene. If scene_type is 'real': describe a REAL, PHOTOGRAPHABLE subject a stock photo/video search would return, e.g. 'a foggy forest at night' or 'an abandoned house at dusk' or 'a police car with flashing lights' or 'a handwritten letter on a desk' - never fictional, never abstract, never text/words in the image, never a recreation of a specific unnamed real person's face. If scene_type is 'concept': describe the idea itself in a few plain words suited for a flat 2D animated illustration/motion-graphics clip, e.g. 'a person sleeping peacefully' or 'blood cells flowing through a vein' or 'a brain with glowing activity' or 'the sun rising over the horizon' - simple, generic, and icon-like, not a specific real place or person."
     }
   ]
 }
 
 Rules:
+- scene_type must be "real" for anything that could genuinely be filmed or photographed (places, weather, objects, real generic people/actions, evidence-style shots, nature, archival-style footage). Use "concept" only for abstract ideas, internal processes, or things with no photographic record (biological/scientific processes, ancient prehistoric moments with no photos, feelings, internal states, historical concepts) that are better shown as a simple flat-illustration/animated-explainer visual instead of forcing a real photo. Most scenes should be "real" - only mark "concept" when a real photo genuinely would not represent the idea.
 - Each scene must cover no more than 10 seconds of spoken narration (1-2 short sentences, roughly 18-22 words) - never write a longer block of narration as a single scene. If a moment needs more narration, split it across multiple consecutive scenes instead.
 - Total scenes should be enough to reach the target word count given in the user message - do not artificially cap the scene count, let it scale naturally with the target word count (this channel's videos run roughly 7-15 minutes depending on the topic).
 - Tell the case as ONE continuous story with a clear beginning, escalation, and ending - not a list of disconnected facts. Build tension gradually; let strange or unsettling details accumulate in a logical chronological or investigative order.
@@ -102,6 +104,7 @@ Return the full script now as strict JSON matching the required shape exactly.`;
     scene_order: scene.scene_order ?? idx + 1,
     text: (scene.text || '').trim(),
     is_hook: Boolean(scene.is_hook),
+    scene_type: scene.scene_type === 'concept' ? 'concept' : 'real',
     image_prompt: scene.image_prompt || null,
   }));
 
