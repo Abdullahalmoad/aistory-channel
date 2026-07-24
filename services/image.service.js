@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
-const { fetchRealMedia } = require('./pexels.service');
+const { fetchRealMedia } = require('./stock-media.service');
 
 const STYLE_SUFFIX =
   ', photorealistic, natural lighting, high detail, sharp focus, professional photography, no text, no watermark, no signature, no blur';
