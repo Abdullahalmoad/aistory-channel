@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const THUMB_WIDTH = 1280;
 const THUMB_HEIGHT = 720;
 const FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
+const ACCENT_COLOR = 'yellow'; // punchy accent line, like a professional CapCut/YouTube thumbnail
 
 function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
@@ -72,6 +73,9 @@ async function generateThumbnail(script, outputDir, scenes = null) {
     await downloadToFile(url, bgPath);
   }
 
+  // Split text into two lines; the LAST line is the punchline and gets the accent color
+  // so the eye has a clear hierarchy (this is what separates a "designed" thumbnail
+  // from a plain caption slapped on a photo).
   const words = rawText.split(' ').filter(Boolean);
   const mid = Math.ceil(words.length / 2);
   const line1 = words.slice(0, mid).join(' ');
@@ -80,20 +84,26 @@ async function generateThumbnail(script, outputDir, scenes = null) {
   const escLine2 = escapeDrawtext(line2);
 
   const scaleCrop = `scale=${THUMB_WIDTH}:${THUMB_HEIGHT}:force_original_aspect_ratio=increase,crop=${THUMB_WIDTH}:${THUMB_HEIGHT}`;
-  const darkOverlay = `drawbox=x=0:y=ih*0.62:w=iw:h=ih*0.38:color=black@0.45:t=fill`;
+  // Darken + slight contrast/vignette pass on the background photo so text always stays readable
+  // regardless of what the source image looks like, and the frame feels graded, not raw.
+  const gradePass = `eq=contrast=1.08:saturation=1.05:gamma=0.95,vignette=PI/5`;
+  const darkOverlay = `drawbox=x=0:y=ih*0.60:w=iw:h=ih*0.40:color=black@0.55:t=fill`;
+
   let filters;
   if (line2) {
     filters = [
       scaleCrop,
+      gradePass,
       darkOverlay,
-      `drawtext=fontfile=${FONT_PATH}:text='${escLine1}':fontsize=95:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=h*0.68`,
-      `drawtext=fontfile=${FONT_PATH}:text='${escLine2}':fontsize=95:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=h*0.82`,
+      `drawtext=fontfile=${FONT_PATH}:text='${escLine1}':fontsize=90:fontcolor=white:borderw=9:bordercolor=black:x=(w-text_w)/2:y=h*0.67`,
+      `drawtext=fontfile=${FONT_PATH}:text='${escLine2}':fontsize=100:fontcolor=${ACCENT_COLOR}:borderw=9:bordercolor=black:x=(w-text_w)/2:y=h*0.82`,
     ].join(',');
   } else {
     filters = [
       scaleCrop,
+      gradePass,
       darkOverlay,
-      `drawtext=fontfile=${FONT_PATH}:text='${escLine1}':fontsize=95:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=h*0.75`,
+      `drawtext=fontfile=${FONT_PATH}:text='${escLine1}':fontsize=100:fontcolor=${ACCENT_COLOR}:borderw=9:bordercolor=black:x=(w-text_w)/2:y=h*0.75`,
     ].join(',');
   }
 

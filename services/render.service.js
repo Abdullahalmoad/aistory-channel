@@ -1,10 +1,10 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { buildSrtFromScenes, buildSrtFromWords } = require('./srt.util');
+const { buildSrtFromScenes, buildAssFromWords } = require('./srt.util');
 const { getHostAvatarPath } = require('./host.service');
 
-const TRANSITION_DURATION = 0.4;
+const TRANSITION_DURATION = 0.5;
 
 function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
   return new Promise((resolve, reject) => {
@@ -37,6 +37,7 @@ function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 600000) {
   });
 }
 
+// Legacy fallback caption styles (used only when word-level timestamps aren't available)
 const CAPTION_STYLES = [
   "FontName=Arial,Bold=1,FontSize=26,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=80",
   "FontName=Verdana,Bold=1,FontSize=25,PrimaryColour=&H0000E5FF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=85",
@@ -47,6 +48,36 @@ function pickCaptionStyle() {
   return CAPTION_STYLES[Math.floor(Math.random() * CAPTION_STYLES.length)];
 }
 
+// Cinematic color grade: slight contrast/desaturation, cool shadows, subtle vignette + film grain.
+// Keeps a "mystery/horror" mood instead of the flat, un-graded look of raw AI/stock media.
+const COLOR_GRADE =
+  'eq=contrast=1.10:saturation=0.90:gamma=0.96:brightness=-0.02,' +
+  'vignette=PI/6,' +
+  'noise=alls=5:allf=t+u';
+
+// Several Ken Burns pan directions instead of always "zoom into center" - CapCut-style variety.
+const PAN_DIRECTIONS = [
+  { x: 0, y: 0 },      // straight zoom-in, no pan
+  { x: -60, y: 0 },    // pan left
+  { x: 60, y: 0 },     // pan right
+  { x: 0, y: -40 },    // pan up
+  { x: 0, y: 40 },     // pan down
+];
+
+function pickPanDirection() {
+  return PAN_DIRECTIONS[Math.floor(Math.random() * PAN_DIRECTIONS.length)];
+}
+
+// Varied xfade transitions between scenes instead of a single repeated "fade".
+const TRANSITIONS = [
+  'fade', 'fadeblack', 'wipeleft', 'wiperight', 'slideleft', 'slideright',
+  'smoothleft', 'smoothright', 'circleopen', 'distance', 'hblur', 'radial',
+];
+
+function pickTransition() {
+  return TRANSITIONS[Math.floor(Math.random() * TRANSITIONS.length)];
+}
+
 async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080, avatarPath = null, captionStyle = null, workDir = null, words = null, extraTail = 0 } = {}) {
   const baseDuration = Math.max(scene.end_time - scene.start_time, 0.5);
   const duration = baseDuration + extraTail;
@@ -54,20 +85,23 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
   const totalFrames = Math.round(duration * fps);
   const revealSec = Math.min(0.4, baseDuration / 3);
   const isVideo = Boolean(scene.is_video);
+  const pan = pickPanDirection();
 
   let baseFilter;
   if (isVideo) {
     baseFilter =
       `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
-      `zoompan=z='min(zoom+0.0006,1.1)':d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
-      `fade=t=in:st=0:d=${revealSec}:alpha=0,format=yuv420p`;
+      `zoompan=z='min(zoom+0.0006,1.1)':x='iw/2-(iw/zoom/2)+${pan.x}*(on/${totalFrames})':y='ih/2-(ih/zoom/2)+${pan.y}*(on/${totalFrames})':d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
+      `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
+      `${COLOR_GRADE},format=yuv420p`;
   } else {
     baseFilter =
       `scale=${Math.round(width * 1.3)}:${Math.round(height * 1.3)}:force_original_aspect_ratio=increase,crop=${Math.round(width * 1.3)}:${Math.round(height * 1.3)},` +
       `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.08-0.08*on/${Math.round(revealSec * fps)},min(zoom+0.0007,1.15))':` +
+      `x='iw/2-(iw/zoom/2)+${pan.x}*(on/${totalFrames})':y='ih/2-(ih/zoom/2)+${pan.y}*(on/${totalFrames})':` +
       `d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
       `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
-      `format=yuv420p`;
+      `${COLOR_GRADE},format=yuv420p`;
   }
 
   const inputs = [
@@ -78,8 +112,6 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
 
   let videoFilter;
   if (scene.text && workDir) {
-    const srtPath = path.join(workDir, `scene-${scene.scene_order}.srt`);
-
     const sceneWords = words
       ? words
           .filter((w) => w.start >= scene.start_time && w.start < scene.end_time)
@@ -90,14 +122,20 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
           }))
       : null;
 
+    let subtitleFilter;
     if (sceneWords && sceneWords.length > 0) {
-      buildSrtFromWords(sceneWords, srtPath, 3);
+      // Karaoke-style pop/highlight captions (word-by-word), like CapCut auto-captions.
+      const assPath = path.join(workDir, `scene-${scene.scene_order}.ass`);
+      buildAssFromWords(sceneWords, assPath, { videoWidth: width, videoHeight: height });
+      subtitleFilter = `ass=${assPath.replace(/:/g, '\\:')}`;
     } else {
+      // Fallback: no word timestamps for this scene, use plain styled subtitle.
+      const srtPath = path.join(workDir, `scene-${scene.scene_order}.srt`);
       buildSrtFromScenes([{ start_time: 0, end_time: baseDuration, text: scene.text }], srtPath);
+      const style = captionStyle || pickCaptionStyle();
+      subtitleFilter = `subtitles=${srtPath.replace(/:/g, '\\:')}:force_style='${style}'`;
     }
 
-    const style = captionStyle || pickCaptionStyle();
-    const subtitleFilter = `subtitles=${srtPath.replace(/:/g, '\\:')}:force_style='${style}'`;
     videoFilter = avatarPath
       ? `[0:v]${baseFilter},${subtitleFilter}[vsub];[1:v]scale=280:-1[avatarScaled];[vsub][avatarScaled]overlay=W-w-20:H-h-20[vout]`
       : `[0:v]${baseFilter},${subtitleFilter}[vout]`;
@@ -131,7 +169,8 @@ function buildXfadeChain(n, transitionDuration, renderedDurations) {
   for (let i = 1; i < n; i++) {
     const offset = Math.max(0, cumulative - transitionDuration);
     const outLabel = i === n - 1 ? 'vout' : `vx${i}`;
-    filter += `[${prevLabel}][${i}:v]xfade=transition=fade:duration=${transitionDuration}:offset=${offset.toFixed(3)}[${outLabel}];`;
+    const transition = pickTransition();
+    filter += `[${prevLabel}][${i}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset.toFixed(3)}[${outLabel}];`;
     cumulative = cumulative + renderedDurations[i] - transitionDuration;
     prevLabel = outLabel;
   }
