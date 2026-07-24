@@ -29,7 +29,7 @@ Exact shape required:
   "scenes": [
     {
       "scene_order": 1,
-      "text": "1-3 sentences of narration for this scene only",
+      "text": "1-2 short sentences of narration for this scene only (aim for no more than about 10 seconds spoken aloud)",
       "is_hook": true or false,
       "image_prompt": "Short, concrete English description of a REAL, PHOTOGRAPHABLE subject or scene that a stock photo/video search would actually return results for, e.g. 'a foggy forest at night' or 'an abandoned house at dusk' or 'a police car with flashing lights' or 'a handwritten letter on a desk'. Describe real objects, real places, real weather, or real generic scenes that fit the mood - never fictional, never abstract, never text/words in the image itself, and never a recreation of a specific unnamed real person's face."
     }
@@ -37,7 +37,7 @@ Exact shape required:
 }
 
 Rules:
-- Each scene should cover about 8-15 seconds of spoken narration (2-4 sentences).
+- Each scene must cover no more than 10 seconds of spoken narration (1-2 short sentences, roughly 18-22 words) - never write a longer block of narration as a single scene. If a moment needs more narration, split it across multiple consecutive scenes instead.
 - Total scenes should be enough to reach the target word count given in the user message - do not artificially cap the scene count, let it scale naturally with the target word count (this channel's videos run roughly 7-15 minutes depending on the topic).
 - Tell the case as ONE continuous story with a clear beginning, escalation, and ending - not a list of disconnected facts. Build tension gradually; let strange or unsettling details accumulate in a logical chronological or investigative order.
 - Stick to what is actually documented or credibly reported about the case; when theories are disputed or unconfirmed, say so honestly rather than presenting speculation as fact.
