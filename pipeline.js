@@ -241,9 +241,7 @@ async function runDailyWithStagger() {
     throw err;
   }
 
-  const minDelayMs = 90 * 60 * 1000;
-  const maxDelayMs = 4 * 60 * 60 * 1000;
-  const delayMs = minDelayMs + Math.floor(Math.random() * (maxDelayMs - minDelayMs));
+  const delayMs = 10 * 60 * 1000;
   console.log(`\nWaiting ${Math.round(delayMs / 60000)} minutes before uploading the Short...`);
   await new Promise((r) => setTimeout(r, delayMs));
 
