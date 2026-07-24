@@ -39,7 +39,7 @@ async function runPipelineForTopic(topic) {
   const scenesWithImages = await getAllSceneImages(script.scenes, imagesDir);
 
     console.log('  -> Generating thumbnail...');
-    const thumbnailPath = await generateThumbnail(script, workDir).catch((err) => {
+    const thumbnailPath = await generateThumbnail(script, workDir, scenesWithImages).catch((err) => {
       console.warn(`Thumbnail generation failed: ${err.message}`);
       return null;
     });
@@ -140,7 +140,7 @@ async function runMorningPipeline(topic) {
   console.timeEnd('step4_transcribe');
 
   console.log('  -> Generating thumbnail...');
-  const thumbnailPath = await generateThumbnail(script, workDir).catch((err) => {
+  const thumbnailPath = await generateThumbnail(script, workDir, scenesWithImages).catch((err) => {
     console.warn(`Thumbnail generation failed: ${err.message}`);
     return null;
   });

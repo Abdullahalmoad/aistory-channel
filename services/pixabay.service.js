@@ -60,7 +60,8 @@ async function searchPixabayVideo(query) {
   if (hits.length === 0) return null;
   const pick = hits[Math.floor(Math.random() * Math.min(hits.length, 3))];
   const videos = pick.videos || {};
-  return (videos.large && videos.large.url) || (videos.medium && videos.medium.url) || (videos.small && videos.small.url) || null;
+  if (videos.large && videos.large.width >= 1920) return videos.large.url;
+  return null;
 }
 
 async function fetchPixabayMedia(query, outputDir, sceneOrder, preferVideo = false) {

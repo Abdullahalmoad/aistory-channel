@@ -72,9 +72,9 @@ async function searchPexelsVideo(query) {
   const videos = json.videos || [];
   if (videos.length === 0) return null;
   const pick = videos[Math.floor(Math.random() * Math.min(videos.length, 3))];
-  const files = (pick.video_files || []).filter((f) => f.width && f.width <= 1920 && f.file_type === 'video/mp4');
-  files.sort((a, b) => b.width - a.width);
-  const file = files[0] || pick.video_files?.[0];
+  const files = (pick.video_files || []).filter((f) => f.width && f.width >= 1920 && f.width <= 3840 && f.file_type === 'video/mp4');
+  files.sort((a, b) => a.width - b.width);
+  const file = files[0];
   return file ? file.link : null;
 }
 

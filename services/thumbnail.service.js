@@ -47,19 +47,30 @@ function escapeDrawtext(text) {
     .replace(/%/g, '\\%');
 }
 
-async function generateThumbnail(script, outputDir) {
+async function generateThumbnail(script, outputDir, scenes = null) {
   const rawText = (script.thumbnail_text || script.title || '').toUpperCase();
-  const imagePrompt = script.thumbnail_image_prompt || script.title || 'a mysterious dramatic scene';
 
   const bgPath = path.join(outputDir, 'thumb-bg.jpg');
   const outputPath = path.join(outputDir, 'thumbnail.jpg');
 
-  const STYLE_SUFFIX = ', flat vector illustration, dramatic lighting, high contrast, cinematic, no text, no watermark';
-  const fullPrompt = `${imagePrompt}${STYLE_SUFFIX}`;
-  const encodedPrompt = encodeURIComponent(fullPrompt);
-  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${THUMB_WIDTH}&height=${THUMB_HEIGHT}&nologo=true&model=flux`;
+  const scored = (scenes || []).filter((s) => s.image_file);
+  const realPhotoScene =
+    scored.find((s) => s.is_hook && !s.is_video) ||
+    scored.find((s) => s.is_hook) ||
+    scored.find((s) => !s.is_video) ||
+    scored[0] ||
+    null;
 
-  await downloadToFile(url, bgPath);
+  if (realPhotoScene) {
+    fs.copyFileSync(realPhotoScene.image_file, bgPath);
+  } else {
+    const imagePrompt = script.thumbnail_image_prompt || script.title || 'a mysterious dramatic scene';
+    const STYLE_SUFFIX = ', flat vector illustration, dramatic lighting, high contrast, cinematic, no text, no watermark';
+    const fullPrompt = `${imagePrompt}${STYLE_SUFFIX}`;
+    const encodedPrompt = encodeURIComponent(fullPrompt);
+    const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${THUMB_WIDTH}&height=${THUMB_HEIGHT}&nologo=true&model=flux`;
+    await downloadToFile(url, bgPath);
+  }
 
   const words = rawText.split(' ').filter(Boolean);
   const mid = Math.ceil(words.length / 2);
@@ -68,16 +79,19 @@ async function generateThumbnail(script, outputDir) {
   const escLine1 = escapeDrawtext(line1);
   const escLine2 = escapeDrawtext(line2);
 
+  const scaleCrop = `scale=${THUMB_WIDTH}:${THUMB_HEIGHT}:force_original_aspect_ratio=increase,crop=${THUMB_WIDTH}:${THUMB_HEIGHT}`;
   const darkOverlay = `drawbox=x=0:y=ih*0.62:w=iw:h=ih*0.38:color=black@0.45:t=fill`;
   let filters;
   if (line2) {
     filters = [
+      scaleCrop,
       darkOverlay,
       `drawtext=fontfile=${FONT_PATH}:text='${escLine1}':fontsize=95:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=h*0.68`,
       `drawtext=fontfile=${FONT_PATH}:text='${escLine2}':fontsize=95:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=h*0.82`,
     ].join(',');
   } else {
     filters = [
+      scaleCrop,
       darkOverlay,
       `drawtext=fontfile=${FONT_PATH}:text='${escLine1}':fontsize=95:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=h*0.75`,
     ].join(',');
