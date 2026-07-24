@@ -77,7 +77,7 @@ async function getSceneMedia(scene, outputDir) {
     throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
   }
 
-  const preferVideo = Math.random() < 0.25;
+  const preferVideo = true; // videos are the primary media for this channel - always try a real video clip first, only fall back to a photo when no matching video exists
   const real = await fetchRealMedia(scene.image_prompt, outputDir, scene.scene_order, preferVideo);
   if (real && (real.isVideo ? isValidVideo(real.filePath) : isValidImage(real.filePath))) {
     return real;
