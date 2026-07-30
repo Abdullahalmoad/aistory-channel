@@ -1,15 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const { Agent, setGlobalDispatcher } = require('undici');
-
-setGlobalDispatcher(new Agent({
-  headersTimeout: 180000,
-  bodyTimeout: 180000,
-}));
 
 const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
 const GEN_BASE = 'https://gen.pollinations.ai';
 const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'kontext';
+const FETCH_TIMEOUT_MS = 180000;
 
 const CHARACTER_REF_PATH = path.join(__dirname, '..', 'assets', 'character-reference.png');
 
@@ -54,6 +49,7 @@ async function uploadReferenceImage(filePath) {
     method: 'POST',
     headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
     body: form,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -78,6 +74,7 @@ async function generateCharacterReferenceIfMissing() {
     try {
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       fs.mkdirSync(path.dirname(CHARACTER_REF_PATH), { recursive: true });
       await downloadImageResponse(res, CHARACTER_REF_PATH);
@@ -110,7 +107,10 @@ async function getSceneImageFromAI(scene, outputDir, referenceUrl) {
   );
   const url = `${GEN_BASE}/image/${prompt}?model=${IMAGE_MODEL}&image=${encodeURIComponent(referenceUrl)}&width=1920&height=1080`;
 
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` } });
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   await downloadImageResponse(res, destPath);
 
   if (!isValidImage(destPath)) {
