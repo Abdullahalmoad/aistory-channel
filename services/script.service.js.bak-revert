@@ -5,53 +5,58 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 const NARRATION_WPM = 145;
-const MIN_TARGET_WORDS = 1450; // ~10 minutes
+const MIN_TARGET_WORDS = 1000; // ~7 minutes
 const MAX_TARGET_WORDS = 2200; // ~15 minutes
 
-function pickTargetWords() {
-  return Math.round(MIN_TARGET_WORDS + Math.random() * (MAX_TARGET_WORDS - MIN_TARGET_WORDS));
+function pickTargetWords(topic) {
+  const isListTopic = /d/.test(topic);
+  const mid = Math.round((MIN_TARGET_WORDS + MAX_TARGET_WORDS) / 2);
+  const rangeStart = isListTopic ? mid : MIN_TARGET_WORDS;
+  const rangeEnd = isListTopic ? MAX_TARGET_WORDS : mid + Math.round((MAX_TARGET_WORDS - mid) * 0.3);
+  return Math.round(rangeStart + Math.random() * (rangeEnd - rangeStart));
 }
 
-const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel about fascinating facts and survival questions from prehistory and the ancient human past - long-form videos (10-15 minutes), narrated over a fixed hand-drawn sketch illustration style (one consistent recurring character across every scene, NOT real photos, NOT real stock video, NOT a photorealistic style).
+const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel that publishes "Did you know", "What if", and ranked list videos about science, history, and nature - video length varies naturally by topic, roughly 7 to 15 minutes - narrated over real photos and real stock video footage (not AI-illustrated animation, not cartoons).
 
-Your job: turn the given topic into a single continuous, curiosity-driven narrative script split into short scenes, suitable for text-to-speech narration and one generated illustration per scene.
+Your job: turn the given topic into a full narration script split into short scenes, suitable for text-to-speech narration and scene-by-scene real-footage visuals.
 
 Respond with STRICT JSON only. No markdown code fences, no commentary before or after the JSON.
 
 Exact shape required:
 {
-  "title": "Compelling YouTube title phrased as a short question or hook, under 12 words",
-  "description": "2-4 sentence YouTube description mentioning the topic naturally, plus 3-5 relevant hashtags at the end",
+  "title": "Compelling, clickable YouTube title (avoid excessive clickbait, keep it honest)",
+  "description": "2-4 sentence YouTube description including a natural mention of the topic, plus 3-5 relevant hashtags at the end",
   "tags": ["tag1", "tag2", "..."],
-  "thumbnail_text": "2-4 punchy ALL CAPS words for a YouTube thumbnail overlay, maximum curiosity, no punctuation",
-  "thumbnail_image_prompt": "Short, concrete English description of ONE scene's setting and action for use as the thumbnail background (the character itself is fixed elsewhere in the pipeline - do not describe their appearance here, just the scene)",
-  "estimated_word_count": 1800,
+  "thumbnail_text": "2-4 punchy ALL CAPS words for a YouTube thumbnail overlay, e.g. MIND BLOWN or NOT REAL, maximum curiosity, no punctuation",
+  "thumbnail_image_prompt": "Short, concrete English description of ONE real-world visual moment for use as the thumbnail background, the single most striking or curious image related to the topic",
+  "estimated_word_count": 600,
   "scenes": [
     {
       "scene_order": 1,
-      "text": "2-4 sentences of narration for this scene only (aim for roughly 15-25 seconds spoken aloud)",
+      "text": "1-3 sentences of narration for this scene only",
       "is_hook": true or false,
-      "image_prompt": "Short, concrete English description of the setting, action, and mood for THIS scene only, e.g. 'the character running through heavy rain, chasing a herd of bison across a plain, storm clouds overhead'. Do NOT describe the character's appearance, clothing, or the art style - that is fixed automatically elsewhere in the pipeline. No text or words inside the image."
+      "image_prompt": "Short, concrete English description of a REAL, PHOTOGRAPHABLE subject or scene that a stock photo/video search would actually return results for, e.g. 'a scientist looking through a microscope' or 'the pyramids of Giza at sunset' or 'a blue whale swimming underwater'. Describe real objects, real places, real animals, or real everyday scenes only - never fictional, never abstract, never text/words in the image itself."
     }
   ]
 }
 
 Rules:
-- Each scene should cover roughly 15-25 seconds of spoken narration (3-5 short sentences) - never write a much longer or much shorter block as a single scene. If a moment needs more narration, split it across consecutive scenes instead.
-- Total scene count should scale naturally with the target word count given in the user message - do not artificially cap or pad it.
-- Build the script with a clear structure: an opening hook (first 15-20 seconds) that poses the question or scenario in a striking, direct way -> 3-4 sections that expand on the topic in escalating detail (accumulating facts, examples, historical/scientific context in a logical order) -> a genuine closing "payoff" that actually answers the opening question or lands the biggest takeaway - not a recap of what was already said.
-- Stick to information that is generally accepted or credibly theorized by historians/anthropologists; when something is disputed or uncertain, say so honestly (e.g. "researchers believe" or "most likely") instead of presenting speculation as settled fact.
-- Mark is_hook = true on roughly 3 to 6 scenes (scale with video length) that are the single most curiosity-driving or surprising moments in the whole video (these will later be cut into a vertical teaser Short/Reels that links to the full video). Prefer the opening hook and the biggest single reveal or turning point.
+- Each scene should cover about 8-15 seconds of spoken narration (2-4 sentences).
+- Total scenes should be enough to reach the target word count given in the user message - do not artificially cap the scene count, let it scale naturally with the target word count (this channel's videos run roughly 7-15 minutes depending on the topic).
+- image_prompt must describe something that genuinely exists and could be found as a real photo or real video clip - avoid describing imagined recreations of specific unnamed people; prefer general real subjects (nature, science equipment, landmarks, animals, everyday human activity).
+- Mark is_hook = true on roughly 2 to 5 scenes (scale with video length) that are the MOST surprising or curiosity-driving moments in the whole script (these will later be cut into a short vertical teaser). Prefer the opening hook and the single biggest reveal.
 - The narration should read naturally when spoken aloud (avoid text formatting like bullet points, avoid emoji in the "text" field).
-- The LAST scene must be a genuine closing thought in your own voice (e.g. the real answer to the opening question, why it still matters today, a lingering open question) - NOT a summary of the plot. This is required editorial content, not filler.
+- The LAST scene must be a genuine closing thought in your own voice (e.g. why this fact matters, what it implies, a related question left open) - NOT a recap of the plot. This is required editorial content, not filler.
+- If the topic is a ranked/superlative list of N items (e.g. "Top 10 X", "10 strangest facts about Y", "the N most Z"), you MUST cover ALL N items in order (counting down or up as appropriate) - scale the scene count up accordingly rather than staying capped low, and never skip or cut the list short. Each item's image_prompt must depict a REAL, SPECIFIC example of that exact item (a real named planet, animal, person, place, or fact) - never a generic filler visual.
+- Do NOT just name or briefly mention each item or fact and move on - explain it properly. For list topics, spend 2-4 scenes per item covering what it actually is, the specific real numbers/facts that make it notable, and concretely how or why it relates to the topic's theme (e.g. for "planets most similar to Earth", explain its actual size, distance from its star, surface temperature, or atmosphere compared to Earth's, with real figures). For single-fact or "what if" topics, don't just state the fact - explain the real mechanism, cause, or chain of consequences behind it across multiple scenes with specific supporting details, like a mini explainer, not a one-line trivia drop.
 - The response MUST be valid JSON, parsable directly with JSON.parse, with no trailing commas.`;
 
 const NARRATIVE_STYLES = [
-  'Open with the central curiosity question of the topic, then unfold the answer chronologically/logically from the start.',
-  'Start at the most dramatic or surprising moment related to the topic, then rewind to build the full context that leads there.',
-  'Structure it as a gradual build of smaller, stranger details that accumulate into the full picture.',
-  'Frame it around different theories or explanations researchers have proposed, weighing each against the actual evidence.',
-  'Tell it as one representative day in the life of a person facing this exact challenge, start to finish.',
+  'Open with a bold "Did you know" hook fact, then build up supporting facts that make it even more surprising.',
+  'Frame it as a "What if" hypothetical scenario, walking through what would realistically happen step by step.',
+  'Structure it as a rapid countdown of surprising facts about the topic, saving the most shocking one for last.',
+  'Open with a common misconception people believe, then reveal the surprising truth with supporting facts.',
+  'Tell it as a chain of cause-and-effect: each surprising fact leads naturally into the next one.',
 ];
 
 function pickNarrativeStyle() {
@@ -62,9 +67,9 @@ async function generateScript(topic, options = {}) {
   const { targetWords = pickTargetWords(topic) } = options;
 
   const userPrompt = `Topic: ${topic}
-Target narration word count: approximately ${targetWords} words (~${Math.round(targetWords / NARRATION_WPM)} minutes of spoken video - videos on this channel run 10 to 15 minutes).
+Target narration word count: approximately ${targetWords} words (~${Math.round(targetWords / NARRATION_WPM)} minutes of spoken video - videos on this channel run 7 to 15 minutes depending on the topic).
 Language: English.
-Choose the narrative structure that best fits THIS specific topic's content and tone. Pick exactly ONE of the following approaches (do not blend them, do not default to the same one every time - base your choice on what suits this topic best):
+Choose the narrative structure that best fits THIS specific topic's content and tone. Pick exactly ONE of the following approaches (do not blend them, do not default to the same one every time - base your choice on what suits this fact/topic best):
 ${NARRATIVE_STYLES.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
 Return the full script now as strict JSON matching the required shape exactly.`;

@@ -1,152 +1,149 @@
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
-const { spawn } = require('child_process');
-const { fetchRealMedia } = require('./stock-media.service');
 
-const STYLE_SUFFIX =
-  ', photorealistic, natural lighting, high detail, sharp focus, professional photography, no text, no watermark, no signature, no blur';
+const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
+const GEN_BASE = 'https://gen.pollinations.ai';
+// kontext = Flux Kontext, strong at consistent image editing/reference-following.
+// nanobanana / nanobanana-2 are alternatives - compare cost/quality via GET /image/models.
+const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'kontext';
 
-function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers, timeout: 70000 }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
-        return downloadToFile(res.headers.location, destPath, headers, redirectsLeft - 1).then(resolve, reject);
-      }
-      if (res.statusCode !== 200) {
-        return reject(new Error(`Download failed: HTTP ${res.statusCode} for ${url}`));
-      }
-      const fileStream = fs.createWriteStream(destPath);
-      res.pipe(fileStream);
-      fileStream.on('finish', () => fileStream.close(() => resolve(destPath)));
-      fileStream.on('error', reject);
-    });
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timed out after 70s'));
-    });
-    req.on('error', reject);
-  });
+const CHARACTER_REF_PATH = path.join(__dirname, '..', 'assets', 'character-reference.png');
+
+// وصف الشخصية والستايل الثابت - يُضاف تلقائياً لكل مشهد. السكربت (script.service.js)
+// لا يعيد وصف الشخصية أبداً، فقط يصف الفعل/المكان لكل مشهد.
+const STYLE_LOCK =
+  'Hand-drawn sketch illustration style, minimalist stick-figure prehistoric human ' +
+  'character with a round head, messy dark hair, simple dot eyes, wearing rough ' +
+  'fur/hide clothing. Muted earthy color palette: sepia, dusty beige, warm brown, ' +
+  'faded tan. Visible paper texture, loose hand-inked linework, flat cartoon coloring, ' +
+  'no gradients, no 3D render look. Wide cinematic landscape composition. No text, ' +
+  'no watermark, no logo, no captions.';
+
+function assertKey() {
+  if (!POLLINATIONS_KEY) {
+    throw new Error(
+      'POLLINATIONS_KEY is not set. Get a free key at https://enter.pollinations.ai and add it as a GitHub secret / env var.'
+    );
+  }
 }
 
 function isValidImage(filePath) {
   try {
-    const buffer = fs.readFileSync(filePath);
-    if (buffer.length < 25000) return false;
-    if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return false;
-    return true;
+    // format-agnostic (kontext/nanobanana can return jpeg or png) - just guard against
+    // empty/error/tiny responses.
+    return fs.statSync(filePath).size > 15000;
   } catch {
     return false;
   }
 }
 
-function isValidVideo(filePath) {
-  try {
-    return fs.statSync(filePath).size > 50000;
-  } catch {
-    return false;
+async function downloadImageResponse(res, destPath) {
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Pollinations request failed: ${res.status} ${body.slice(0, 300)}`);
   }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(destPath, buffer);
+  return destPath;
 }
 
-async function getSceneImageFromAI(scene, outputDir, options = {}) {
+async function uploadReferenceImage(filePath) {
+  const form = new FormData();
+  form.append('file', new Blob([fs.readFileSync(filePath)]), 'character.png');
+  const res = await fetch(`${GEN_BASE}/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Reference upload failed: ${res.status} ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.url; // https://media.pollinations.ai/<hash> - valid 30 days, so we re-upload every run
+}
+
+/**
+ * تولد صورة الشخصية المرجعية مرة وحدة إذا مو موجودة، وتحفظها بالريبو.
+ * تشغيلة GitHub Actions الأولى تولدها تلقائياً؛ يُفضّل بعدها تسوي commit
+ * لملف assets/character-reference.png عشان نفس الشخصية تثبت لكل الفيديوهات القادمة.
+ */
+async function generateCharacterReferenceIfMissing() {
+  if (fs.existsSync(CHARACTER_REF_PATH)) return CHARACTER_REF_PATH;
+
+  assertKey();
+  console.log('  -> No character reference found - generating one now (first run only)...');
+  const prompt = encodeURIComponent(
+    `${STYLE_LOCK} Full-body reference portrait of the main character, standing neutrally, facing camera, holding a simple wooden spear.`
+  );
+  const res = await fetch(`${GEN_BASE}/image/${prompt}?model=${IMAGE_MODEL}&width=1024&height=1536`, {
+    headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
+  });
+
+  fs.mkdirSync(path.dirname(CHARACTER_REF_PATH), { recursive: true });
+  await downloadImageResponse(res, CHARACTER_REF_PATH);
+  console.log(`  -> Character reference saved: ${CHARACTER_REF_PATH}`);
+  console.log('  -> IMPORTANT: commit this file to your repo so future runs reuse the same character.');
+  return CHARACTER_REF_PATH;
+}
+
+async function getSceneImageFromAI(scene, outputDir, referenceUrl) {
   if (!scene.image_prompt) {
     throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
   }
-  const destPath = path.join(outputDir, `scene-${scene.scene_order}.jpg`);
+  const destPath = path.join(outputDir, `scene-${scene.scene_order}.png`);
 
-  const fullPrompt = `${scene.image_prompt}${STYLE_SUFFIX}`;
-  const encodedPrompt = encodeURIComponent(fullPrompt);
+  const prompt = encodeURIComponent(
+    `${STYLE_LOCK} Use the exact same character shown in the reference image (same face, hair, and outfit) - do not change their appearance. Scene: ${scene.image_prompt}`
+  );
+  const url = `${GEN_BASE}/image/${prompt}?model=${IMAGE_MODEL}&image=${encodeURIComponent(referenceUrl)}&width=1920&height=1080`;
 
-  let url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1920&height=1080&nologo=true&model=flux`;
-  if (options.seed != null) {
-    url += `&seed=${options.seed}`;
-  }
-
-  await downloadToFile(url, destPath);
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` } });
+  await downloadImageResponse(res, destPath);
 
   if (!isValidImage(destPath)) {
     try { fs.unlinkSync(destPath); } catch {}
     throw new Error(`Image failed quality check for scene ${scene.scene_order}`);
   }
 
-  return { filePath: destPath, isVideo: false, source: 'pollinations' };
-}
-
-// Search suffixes tried in order for "concept" scenes (abstract ideas, internal
-// processes, prehistoric moments with no real photos) - aims to match the flat,
-// hand-drawn 2D animated-explainer clips stock sites tag under these terms,
-// instead of forcing a real photo onto an idea that isn't photographable.
-const CONCEPT_QUERY_SUFFIXES = [
-  'flat 2d animation',
-  'animated explainer motion graphics',
-  'animated illustration',
-];
-
-function buildConceptQuery(basePrompt, attempt) {
-  const suffix = CONCEPT_QUERY_SUFFIXES[attempt % CONCEPT_QUERY_SUFFIXES.length];
-  return `${basePrompt}, ${suffix}`;
-}
-
-async function getSceneMedia(scene, outputDir) {
-  if (!scene.image_prompt) {
-    throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
-  }
-
-  const preferVideo = true; // videos are the primary media for this channel - always try a real video clip first, only fall back to a photo when no matching video exists
-
-  if (scene.scene_type === 'concept') {
-    for (let attempt = 0; attempt < CONCEPT_QUERY_SUFFIXES.length; attempt++) {
-      const query = buildConceptQuery(scene.image_prompt, attempt);
-      const animated = await fetchRealMedia(query, outputDir, scene.scene_order, preferVideo);
-      if (animated && animated.isVideo && isValidVideo(animated.filePath)) {
-        return animated;
-      }
-    }
-    // No matching animated clip found - fall through to the normal search below,
-    // and ultimately to AI image generation, which still handles concept scenes fine.
-  }
-
-  const real = await fetchRealMedia(scene.image_prompt, outputDir, scene.scene_order, preferVideo);
-  if (real && (real.isVideo ? isValidVideo(real.filePath) : isValidImage(real.filePath))) {
-    return real;
-  }
-
-  return getSceneImageFromAI(scene, outputDir);
+  return { filePath: destPath, source: `pollinations-${IMAGE_MODEL}` };
 }
 
 async function getAllSceneImages(scenes, outputDir) {
   fs.mkdirSync(outputDir, { recursive: true });
+  assertKey();
+
+  await generateCharacterReferenceIfMissing();
+  const referenceUrl = await uploadReferenceImage(CHARACTER_REF_PATH);
 
   const BATCH_SIZE = 2;
   const rawResults = new Array(scenes.length);
 
   for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
     const batch = scenes.slice(i, i + BATCH_SIZE);
-    console.log(`  -> Fetching media ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length}...`);
+    console.log(`  -> Generating images ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length}...`);
     const batchResults = await Promise.all(
       batch.map(async (scene, idx) => {
         await new Promise((r) => setTimeout(r, idx * 300));
         let filePath = null;
-        let isVideo = false;
         let source = null;
         let error = null;
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
-            const result = await getSceneMedia(scene, outputDir);
+            const result = await getSceneImageFromAI(scene, outputDir, referenceUrl);
             filePath = result.filePath;
-            isVideo = result.isVideo;
             source = result.source;
             break;
           } catch (err) {
             error = err.message;
-            console.warn(`Media attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
+            console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
             if (attempt < 3) {
               const backoff = Math.min(8000, 1500 * Math.pow(2, attempt - 1));
               await new Promise((r) => setTimeout(r, backoff));
             }
           }
         }
-        return { filePath, isVideo, source, error };
+        return { filePath, source, error };
       })
     );
     batchResults.forEach((r, idx) => { rawResults[i + idx] = r; });
@@ -156,40 +153,23 @@ async function getAllSceneImages(scenes, outputDir) {
   let lastGood = null;
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
-    let { filePath, isVideo, source, error } = rawResults[i];
+    let { filePath, source, error } = rawResults[i];
 
     if (!filePath) {
       if (lastGood) {
-        filePath = lastGood.filePath;
-        isVideo = lastGood.isVideo;
-        console.warn(`  -> Falling back to previous scene's media for scene ${scene.scene_order}`);
+        filePath = lastGood;
+        console.warn(`  -> Falling back to previous scene's image for scene ${scene.scene_order}`);
       } else {
-        filePath = await ensureFallbackImage(outputDir);
-        isVideo = false;
-        console.warn(`  -> No previous media available, using plain fallback for scene ${scene.scene_order}`);
+        filePath = CHARACTER_REF_PATH;
+        console.warn(`  -> No previous image available, using character reference for scene ${scene.scene_order}`);
       }
     } else {
-      lastGood = { filePath, isVideo };
+      lastGood = filePath;
     }
 
-    results.push({ ...scene, image_file: filePath, is_video: isVideo, media_source: source, image_error: error });
+    results.push({ ...scene, image_file: filePath, is_video: false, media_source: source, image_error: error });
   }
   return results;
 }
 
-async function ensureFallbackImage(outputDir) {
-  const fallbackPath = path.join(outputDir, 'fallback.jpg');
-  if (fs.existsSync(fallbackPath)) return fallbackPath;
-
-  await new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', [
-      '-y', '-f', 'lavfi', '-i', 'color=c=0x1a1a2e:s=1920x1080',
-      '-frames:v', '1', fallbackPath,
-    ]);
-    proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error('ffmpeg fallback failed'))));
-    proc.on('error', reject);
-  });
-  return fallbackPath;
-}
-
-module.exports = { getAllSceneImages, getSceneMedia, STYLE_SUFFIX };
+module.exports = { getAllSceneImages, generateCharacterReferenceIfMissing, STYLE_LOCK };

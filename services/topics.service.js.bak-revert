@@ -7,7 +7,7 @@ const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 const TOPICS_PATH = path.join(__dirname, '..', 'topics.json');
 
-const CATEGORIES = ['ancient human survival in harsh conditions', 'strange prehistoric habits and rituals', 'medicine and healing before modern science', 'animal behavior and its link to early humans', 'daily-life challenges in the Stone Age', 'archaeological discoveries that changed what we know about our ancestors'];
+const CATEGORIES = ['science and space', 'history and ancient civilizations', 'nature and animals', 'technology', 'the human body and mind'];
 
 function loadTopics() {
   const raw = fs.readFileSync(TOPICS_PATH, 'utf-8');
@@ -21,20 +21,17 @@ function saveTopics(data) {
 async function generateNewTopics(existingTopics, count = 10) {
   const existingList = existingTopics.map((t) => `- ${t.topic}`).join('\n');
   const categoryList = CATEGORIES.join(', ');
-  const prompt = `You generate topic ideas for a YouTube channel that makes long-form (10-15 minute) videos about fascinating facts and survival questions from prehistory and the ancient human past, across these angles: ${categoryList}. The channel's whole identity is curiosity and "did you know / what would happen if" intrigue - NOT a horror or true-crime channel.
+  const prompt = `You generate topic ideas for a YouTube channel that makes short "Did you know", "What if", and ranked/superlative list videos about ${categoryList}.
 
 Here are topics already used - do NOT repeat these or anything too similar:
 ${existingList}
 
-Generate ${count} brand new topic ideas, mixing across all the categories above (not just one).
+Generate ${count} brand new topic ideas, mixing across all the categories above (not just one). Use a mix of THREE formats:
+1. Single surprising fact (one sentence).
+2. "What if" hypothetical scenario (one sentence).
+3. A ranked or superlative list of exactly 10 real, distinct, well-known items - vary the superlative and structure each time instead of repeating the same pattern. Examples of the STYLE (do not reuse these literally, invent new specific ones): "The 10 smartest people in history", "10 strangest facts about black holes", "The 10 most Earth-like planets ever discovered", "10 weirdest animals in the ocean", "The 10 deadliest diseases in history", "10 fastest animals on Earth", "The 10 most mysterious ancient ruins". Mix superlatives like smartest, weirdest, strangest, deadliest, fastest, rarest, oldest, most successful, most Earth-like, most mysterious - and mix the sentence structure too (not always "Top 10 X", also try "N strangest facts about X").
 
-Hard requirements for every topic:
-- Phrase it as a short curiosity-driven question or hook, under 12 words - matching this exact style: "How did ancient humans keep a fire burning for days without matches?" or "What happened if someone got separated from their tribe in the Stone Age?".
-- Ground it in a real, generally-known anthropological or historical fact/theory (simplified for narration is fine, but it must not be pure invention with no basis).
-- It needs a clear "survival or human challenge" angle that can support a full narrative with a beginning, build-up, and payoff - not just a flat one-line trivia fact.
-- Avoid anything purely academic/abstract with no concrete survival or human-challenge angle.
-
-Return ONLY a JSON array of strings, nothing else, no markdown formatting.`;
+Aim for roughly a third of each format. Each topic must be a single sentence, specific enough to research and script (for list topics, make sure 10 real distinct examples genuinely exist), not vague. Return ONLY a JSON array of strings, nothing else, no markdown formatting.`;
 
   const completion = await groq.chat.completions.create({
     model: MODEL,

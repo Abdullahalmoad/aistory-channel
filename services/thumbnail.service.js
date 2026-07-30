@@ -1,30 +1,23 @@
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
 const { spawn } = require('child_process');
+
+const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
+const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'kontext';
 
 const THUMB_WIDTH = 1280;
 const THUMB_HEIGHT = 720;
 const FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
 const ACCENT_COLOR = 'yellow'; // punchy accent line, like a professional CapCut/YouTube thumbnail
 
-function downloadToFile(url, destPath, headers = {}, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers, timeout: 60000 }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
-        return downloadToFile(res.headers.location, destPath, headers, redirectsLeft - 1).then(resolve, reject);
-      }
-      if (res.statusCode !== 200) {
-        return reject(new Error(`Download failed: HTTP ${res.statusCode} for ${url}`));
-      }
-      const fileStream = fs.createWriteStream(destPath);
-      res.pipe(fileStream);
-      fileStream.on('finish', () => fileStream.close(() => resolve(destPath)));
-      fileStream.on('error', reject);
-    });
-    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out after 60s')); });
-    req.on('error', reject);
-  });
+async function downloadToFile(url, destPath, headers = {}) {
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Download failed: HTTP ${res.status} ${body.slice(0, 300)}`);
+  }
+  fs.writeFileSync(destPath, Buffer.from(await res.arrayBuffer()));
+  return destPath;
 }
 
 function runFfmpeg(args, label = 'ffmpeg') {
@@ -65,12 +58,16 @@ async function generateThumbnail(script, outputDir, scenes = null) {
   if (realPhotoScene) {
     fs.copyFileSync(realPhotoScene.image_file, bgPath);
   } else {
-    const imagePrompt = script.thumbnail_image_prompt || script.title || 'a mysterious dramatic scene';
-    const STYLE_SUFFIX = ', flat vector illustration, dramatic lighting, high contrast, cinematic, no text, no watermark';
-    const fullPrompt = `${imagePrompt}${STYLE_SUFFIX}`;
+    const scenePrompt = script.thumbnail_image_prompt || script.title || 'a dramatic prehistoric scene';
+    const STYLE_LOCK =
+      'Hand-drawn sketch illustration style, minimalist stick-figure prehistoric human character ' +
+      'with a round head, messy dark hair, simple dot eyes, wearing rough fur/hide clothing. ' +
+      'Muted earthy color palette, visible paper texture, loose hand-inked linework, flat cartoon ' +
+      'coloring, dramatic lighting, high contrast, cinematic. No text, no watermark.';
+    const fullPrompt = `${STYLE_LOCK} Scene: ${scenePrompt}`;
     const encodedPrompt = encodeURIComponent(fullPrompt);
-    const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${THUMB_WIDTH}&height=${THUMB_HEIGHT}&nologo=true&model=flux`;
-    await downloadToFile(url, bgPath);
+    const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=${IMAGE_MODEL}&width=${THUMB_WIDTH}&height=${THUMB_HEIGHT}`;
+    await downloadToFile(url, bgPath, { Authorization: `Bearer ${POLLINATIONS_KEY}` });
   }
 
   // Split text into two lines; the LAST line is the punchline and gets the accent color

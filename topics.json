@@ -1,96 +1,22 @@
 {
   "topics": [
-    {
-      "topic": "The Dyatlov Pass Incident: nine hikers who died mysteriously in Russia",
-      "used": true
-    },
-    {
-      "topic": "The Bermuda Triangle: real disappearances and theories",
-      "used": true
-    },
-    {
-      "topic": "The Skinwalker Ranch phenomena, according to witnesses",
-      "used": true
-    },
-    {
-      "topic": "The Black-Eyed Children urban legend and where it came from",
-      "used": true
-    },
-    {
-      "topic": "The Mothman sightings before the Silver Bridge collapse",
-      "used": true
-    },
-    {
-      "topic": "The Sallie House haunting case",
-      "used": true
-    },
-    {
-      "topic": "Real unsolved disappearances in national parks",
-      "used": true
-    },
-    {
-      "topic": "The Winchester Mystery House and why it was built that way",
-      "used": true
-    },
-    {
-      "topic": "The Hinterkaifeck murders: an unsolved German farmhouse mystery",
-      "used": true
-    },
-    {
-      "topic": "Strange true stories of people who received warnings in dreams",
-      "used": true
-    },
-    {
-      "topic": "The Toynbee tiles mystery embedded in US city streets",
-      "used": true
-    },
-    {
-      "topic": "The Max Headroom broadcast signal intrusion incident",
-      "used": true
-    },
-    {
-      "topic": "The Overtoun Bridge dog jumping phenomenon in Scotland",
-      "used": true
-    },
-    {
-      "topic": "The Isdal Woman: an unidentified body and a decades-old mystery",
-      "used": true
-    },
-    {
-      "topic": "Deep sea creatures and unexplained ocean phenomena",
-      "used": true
-    },
-    {
-      "topic": "The Disappearance of the Sodder Children: a Christmas Eve fire and a mystery that has endured for decades",
-      "used": true
-    },
-    {
-      "topic": "The Taos Hum: a low-frequency noise that has plagued a New Mexico town for years with no explanation",
-      "used": true
-    },
-    {
-      "topic": "The Taman Shud Case: a cryptic coded message and an unidentified body found on an Australian beach",
-      "used": true
-    },
-    {
-      "topic": "The Villisca Ax Murder House: a century-old unsolved murder mystery in a small Iowa town",
-      "used": true
-    },
-    {
-      "topic": "The Phantom Time Hypothesis: a theory that suggests a period of time may have been lost from historical records",
-      "used": true
-    },
-    {
-      "topic": "The Bloop: a mysterious low-frequency sound detected by the National Oceanic and Atmospheric Administration",
-      "used": false
-    },
-    {
-      "topic": "The Mary Celeste: a ship found adrift with no signs of its crew on board, sparking theories of mutiny and sea monsters",
-      "used": false
-    },
-    {
-      "topic": "The Kelly-Hopkinsville Encounter: a reported UFO sighting and alien encounter in rural Kentucky",
-      "used": false
-    }
+    { "topic": "How did ancient humans keep a fire burning for days without matches?", "used": false },
+    { "topic": "What did ancient humans do when it rained for weeks straight?", "used": false },
+    { "topic": "What did people do about a toothache 9,000 years ago?", "used": false },
+    { "topic": "Do animals actually understand the meaning of death?", "used": false },
+    { "topic": "The harshest survival methods ancient humans used during the Ice Age", "used": false },
+    { "topic": "How did ancient tribes predict a storm before it hit?", "used": false },
+    { "topic": "What happened if someone got separated from their tribe in the Stone Age?", "used": false },
+    { "topic": "How did ancient humans treat a broken bone with no doctor?", "used": false },
+    { "topic": "Why did some prehistoric animals go extinct while others survived to today?", "used": false },
+    { "topic": "How did ancient people cross a wide river with no boats or bridges?", "used": false },
+    { "topic": "How did ancient humans find clean water with no tools at all?", "used": false },
+    { "topic": "What was the most dangerous moment in a Stone Age hunter's ordinary day?", "used": false },
+    { "topic": "How did ancient women give birth with no medical help at all?", "used": false },
+    { "topic": "How did ancient humans know which plants were poisonous before tasting them?", "used": false },
+    { "topic": "How did ancient humans sleep at night without fear of predators?", "used": false },
+    { "topic": "How did ancient tribes choose where to permanently settle down?", "used": false },
+    { "topic": "What happened to elders who could no longer keep up with the tribe?", "used": false },
+    { "topic": "How did ancient humans first discover they could tame wild animals?", "used": false }
   ]
 }
