@@ -20,12 +20,23 @@ function sendMessage(text) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length },
       },
-      (res) => res.on('data', () => {})
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            console.warn(`Telegram send failed: HTTP ${res.statusCode} ${body.slice(0, 200)}`);
+          }
+          resolve();
+        });
+      }
     );
-    req.on('error', (err) => console.warn('Telegram send failed:', err.message));
+    req.on('error', (err) => {
+      console.warn('Telegram send failed:', err.message);
+      resolve();
+    });
     req.write(payload);
     req.end();
-    resolve();
   });
 }
 
