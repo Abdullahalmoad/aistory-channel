@@ -1,16 +1,18 @@
 const fs = require('fs');
 const path = require('path');
+const { Agent, setGlobalDispatcher } = require('undici');
+
+setGlobalDispatcher(new Agent({
+  headersTimeout: 180000,
+  bodyTimeout: 180000,
+}));
 
 const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
 const GEN_BASE = 'https://gen.pollinations.ai';
-// kontext = Flux Kontext, strong at consistent image editing/reference-following.
-// nanobanana / nanobanana-2 are alternatives - compare cost/quality via GET /image/models.
 const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'kontext';
 
 const CHARACTER_REF_PATH = path.join(__dirname, '..', 'assets', 'character-reference.png');
 
-// وصف الشخصية والستايل الثابت - يُضاف تلقائياً لكل مشهد. السكربت (script.service.js)
-// لا يعيد وصف الشخصية أبداً، فقط يصف الفعل/المكان لكل مشهد.
 const STYLE_LOCK =
   'Hand-drawn sketch illustration style, minimalist stick-figure prehistoric human ' +
   'character with a round head, messy dark hair, simple dot eyes, wearing rough ' +
@@ -29,8 +31,6 @@ function assertKey() {
 
 function isValidImage(filePath) {
   try {
-    // format-agnostic (kontext/nanobanana can return jpeg or png) - just guard against
-    // empty/error/tiny responses.
     return fs.statSync(filePath).size > 15000;
   } catch {
     return false;
@@ -60,14 +60,9 @@ async function uploadReferenceImage(filePath) {
     throw new Error(`Reference upload failed: ${res.status} ${body.slice(0, 300)}`);
   }
   const data = await res.json();
-  return data.url; // https://media.pollinations.ai/<hash> - valid 30 days, so we re-upload every run
+  return data.url;
 }
 
-/**
- * تولد صورة الشخصية المرجعية مرة وحدة إذا مو موجودة، وتحفظها بالريبو.
- * تشغيلة GitHub Actions الأولى تولدها تلقائياً؛ يُفضّل بعدها تسوي commit
- * لملف assets/character-reference.png عشان نفس الشخصية تثبت لكل الفيديوهات القادمة.
- */
 async function generateCharacterReferenceIfMissing() {
   if (fs.existsSync(CHARACTER_REF_PATH)) return CHARACTER_REF_PATH;
 
@@ -76,15 +71,32 @@ async function generateCharacterReferenceIfMissing() {
   const prompt = encodeURIComponent(
     `${STYLE_LOCK} Full-body reference portrait of the main character, standing neutrally, facing camera, holding a simple wooden spear.`
   );
-  const res = await fetch(`${GEN_BASE}/image/${prompt}?model=${IMAGE_MODEL}&width=1024&height=1536`, {
-    headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
-  });
+  const url = `${GEN_BASE}/image/${prompt}?model=${IMAGE_MODEL}&width=1024&height=1536`;
 
-  fs.mkdirSync(path.dirname(CHARACTER_REF_PATH), { recursive: true });
-  await downloadImageResponse(res, CHARACTER_REF_PATH);
-  console.log(`  -> Character reference saved: ${CHARACTER_REF_PATH}`);
-  console.log('  -> IMPORTANT: commit this file to your repo so future runs reuse the same character.');
-  return CHARACTER_REF_PATH;
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
+      });
+      fs.mkdirSync(path.dirname(CHARACTER_REF_PATH), { recursive: true });
+      await downloadImageResponse(res, CHARACTER_REF_PATH);
+      if (!isValidImage(CHARACTER_REF_PATH)) {
+        try { fs.unlinkSync(CHARACTER_REF_PATH); } catch {}
+        throw new Error('Character reference failed quality check');
+      }
+      console.log(`  -> Character reference saved: ${CHARACTER_REF_PATH}`);
+      return CHARACTER_REF_PATH;
+    } catch (err) {
+      lastError = err;
+      console.warn(`Character reference attempt ${attempt}/3 failed: ${err.message}`);
+      if (attempt < 3) {
+        const backoff = Math.min(15000, 3000 * Math.pow(2, attempt - 1));
+        await new Promise((r) => setTimeout(r, backoff));
+      }
+    }
+  }
+  throw new Error(`Character reference generation failed after 3 attempts: ${lastError?.message}`);
 }
 
 async function getSceneImageFromAI(scene, outputDir, referenceUrl) {
