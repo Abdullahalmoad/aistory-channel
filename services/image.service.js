@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
-const GEN_BASE = 'https://gen.pollinations.ai';
-const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'kontext';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const FETCH_TIMEOUT_MS = 180000;
 
 const CHARACTER_REF_PATH = path.join(__dirname, '..', 'assets', 'character-reference.png');
@@ -17,9 +17,9 @@ const STYLE_LOCK =
   'no watermark, no logo, no captions.';
 
 function assertKey() {
-  if (!POLLINATIONS_KEY) {
+  if (!GEMINI_API_KEY) {
     throw new Error(
-      'POLLINATIONS_KEY is not set. Get a free key at https://enter.pollinations.ai and add it as a GitHub secret / env var.'
+      'GEMINI_API_KEY is not set. Get a free key at https://aistudio.google.com/apikey and add it as a GitHub secret / env var.'
     );
   }
 }
@@ -32,31 +32,45 @@ function isValidImage(filePath) {
   }
 }
 
-async function downloadImageResponse(res, destPath) {
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Pollinations request failed: ${res.status} ${body.slice(0, 300)}`);
-  }
-  const buffer = Buffer.from(await res.arrayBuffer());
-  fs.writeFileSync(destPath, buffer);
-  return destPath;
+function fileToInlinePart(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+  const data = fs.readFileSync(filePath).toString('base64');
+  return { inline_data: { mime_type: mimeType, data } };
 }
 
-async function uploadReferenceImage(filePath) {
-  const form = new FormData();
-  form.append('file', new Blob([fs.readFileSync(filePath)]), 'character.png');
-  const res = await fetch(`${GEN_BASE}/upload`, {
+async function callGeminiImage(parts, destPath) {
+  const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
-    body: form,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts }] }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
+
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Reference upload failed: ${res.status} ${body.slice(0, 300)}`);
+    throw new Error(`Gemini request failed: ${res.status} ${body.slice(0, 300)}`);
   }
+
   const data = await res.json();
-  return data.url;
+  const responseParts = data?.candidates?.[0]?.content?.parts || [];
+  const imagePart = responseParts.find((p) => p.inlineData || p.inline_data);
+  const inline = imagePart?.inlineData || imagePart?.inline_data;
+
+  if (!inline?.data) {
+    const textPart = responseParts.find((p) => p.text)?.text;
+    throw new Error(`Gemini returned no image${textPart ? `: ${textPart.slice(0, 200)}` : ''}`);
+  }
+
+  fs.mkdirSync(path.dirname(destPath), { recursive: true });
+  fs.writeFileSync(destPath, Buffer.from(inline.data, 'base64'));
+
+  if (!isValidImage(destPath)) {
+    try { fs.unlinkSync(destPath); } catch {}
+    throw new Error('Image failed quality check');
+  }
+
+  return destPath;
 }
 
 async function generateCharacterReferenceIfMissing() {
@@ -64,25 +78,16 @@ async function generateCharacterReferenceIfMissing() {
 
   assertKey();
   console.log('  -> No character reference found - generating one now (first run only)...');
-  const prompt = encodeURIComponent(
-    `${STYLE_LOCK} Full-body reference portrait of the main character, standing neutrally, facing camera, holding a simple wooden spear.`
-  );
-  const url = `${GEN_BASE}/image/${prompt}?model=${IMAGE_MODEL}&width=1024&height=1536`;
+  const prompt =
+    `${STYLE_LOCK} Full-body reference portrait of the main character, standing neutrally, ` +
+    `facing camera, holding a simple wooden spear.`;
 
   let lastError = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-      fs.mkdirSync(path.dirname(CHARACTER_REF_PATH), { recursive: true });
-      await downloadImageResponse(res, CHARACTER_REF_PATH);
-      if (!isValidImage(CHARACTER_REF_PATH)) {
-        try { fs.unlinkSync(CHARACTER_REF_PATH); } catch {}
-        throw new Error('Character reference failed quality check');
-      }
+      await callGeminiImage([{ text: prompt }], CHARACTER_REF_PATH);
       console.log(`  -> Character reference saved: ${CHARACTER_REF_PATH}`);
+      console.log('  -> IMPORTANT: commit this file to your repo so future runs reuse the same character.');
       return CHARACTER_REF_PATH;
     } catch (err) {
       lastError = err;
@@ -96,29 +101,18 @@ async function generateCharacterReferenceIfMissing() {
   throw new Error(`Character reference generation failed after 3 attempts: ${lastError?.message}`);
 }
 
-async function getSceneImageFromAI(scene, outputDir, referenceUrl) {
+async function getSceneImageFromAI(scene, outputDir, referencePart) {
   if (!scene.image_prompt) {
     throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
   }
   const destPath = path.join(outputDir, `scene-${scene.scene_order}.png`);
 
-  const prompt = encodeURIComponent(
-    `${STYLE_LOCK} Use the exact same character shown in the reference image (same face, hair, and outfit) - do not change their appearance. Scene: ${scene.image_prompt}`
-  );
-  const url = `${GEN_BASE}/image/${prompt}?model=${IMAGE_MODEL}&image=${encodeURIComponent(referenceUrl)}&width=1920&height=1080`;
+  const prompt =
+    `${STYLE_LOCK} Use the exact same character shown in the reference image (same face, ` +
+    `hair, and outfit) - do not change their appearance. Scene: ${scene.image_prompt}`;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  await downloadImageResponse(res, destPath);
-
-  if (!isValidImage(destPath)) {
-    try { fs.unlinkSync(destPath); } catch {}
-    throw new Error(`Image failed quality check for scene ${scene.scene_order}`);
-  }
-
-  return { filePath: destPath, source: `pollinations-${IMAGE_MODEL}` };
+  await callGeminiImage([referencePart, { text: prompt }], destPath);
+  return { filePath: destPath, source: `gemini-${GEMINI_MODEL}` };
 }
 
 async function getAllSceneImages(scenes, outputDir) {
@@ -126,7 +120,7 @@ async function getAllSceneImages(scenes, outputDir) {
   assertKey();
 
   await generateCharacterReferenceIfMissing();
-  const referenceUrl = await uploadReferenceImage(CHARACTER_REF_PATH);
+  const referencePart = fileToInlinePart(CHARACTER_REF_PATH);
 
   const BATCH_SIZE = 2;
   const rawResults = new Array(scenes.length);
@@ -142,7 +136,7 @@ async function getAllSceneImages(scenes, outputDir) {
         let error = null;
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
-            const result = await getSceneImageFromAI(scene, outputDir, referenceUrl);
+            const result = await getSceneImageFromAI(scene, outputDir, referencePart);
             filePath = result.filePath;
             source = result.source;
             break;
@@ -184,4 +178,27 @@ async function getAllSceneImages(scenes, outputDir) {
   return results;
 }
 
-module.exports = { getAllSceneImages, generateCharacterReferenceIfMissing, STYLE_LOCK };
+async function generateStandaloneImage(prompt, destPath) {
+  assertKey();
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await callGeminiImage([{ text: prompt }], destPath);
+      return destPath;
+    } catch (err) {
+      lastError = err;
+      if (attempt < 3) {
+        const backoff = Math.min(8000, 1500 * Math.pow(2, attempt - 1));
+        await new Promise((r) => setTimeout(r, backoff));
+      }
+    }
+  }
+  throw new Error(`Standalone image generation failed after 3 attempts: ${lastError?.message}`);
+}
+
+module.exports = {
+  getAllSceneImages,
+  generateCharacterReferenceIfMissing,
+  generateStandaloneImage,
+  STYLE_LOCK,
+};

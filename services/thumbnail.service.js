@@ -2,23 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
-const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'kontext';
+const { generateStandaloneImage } = require('./image.service');
 
 const THUMB_WIDTH = 1280;
 const THUMB_HEIGHT = 720;
 const FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
-const ACCENT_COLOR = 'yellow'; // punchy accent line, like a professional CapCut/YouTube thumbnail
-
-async function downloadToFile(url, destPath, headers = {}) {
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Download failed: HTTP ${res.status} ${body.slice(0, 300)}`);
-  }
-  fs.writeFileSync(destPath, Buffer.from(await res.arrayBuffer()));
-  return destPath;
-}
+const ACCENT_COLOR = 'yellow';
 
 function runFfmpeg(args, label = 'ffmpeg') {
   return new Promise((resolve, reject) => {
@@ -65,14 +54,9 @@ async function generateThumbnail(script, outputDir, scenes = null) {
       'Muted earthy color palette, visible paper texture, loose hand-inked linework, flat cartoon ' +
       'coloring, dramatic lighting, high contrast, cinematic. No text, no watermark.';
     const fullPrompt = `${STYLE_LOCK} Scene: ${scenePrompt}`;
-    const encodedPrompt = encodeURIComponent(fullPrompt);
-    const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=${IMAGE_MODEL}&width=${THUMB_WIDTH}&height=${THUMB_HEIGHT}`;
-    await downloadToFile(url, bgPath, { Authorization: `Bearer ${POLLINATIONS_KEY}` });
+    await generateStandaloneImage(fullPrompt, bgPath);
   }
 
-  // Split text into two lines; the LAST line is the punchline and gets the accent color
-  // so the eye has a clear hierarchy (this is what separates a "designed" thumbnail
-  // from a plain caption slapped on a photo).
   const words = rawText.split(' ').filter(Boolean);
   const mid = Math.ceil(words.length / 2);
   const line1 = words.slice(0, mid).join(' ');
@@ -81,8 +65,6 @@ async function generateThumbnail(script, outputDir, scenes = null) {
   const escLine2 = escapeDrawtext(line2);
 
   const scaleCrop = `scale=${THUMB_WIDTH}:${THUMB_HEIGHT}:force_original_aspect_ratio=increase,crop=${THUMB_WIDTH}:${THUMB_HEIGHT}`;
-  // Darken + slight contrast/vignette pass on the background photo so text always stays readable
-  // regardless of what the source image looks like, and the frame feels graded, not raw.
   const gradePass = `eq=contrast=1.08:saturation=1.05:gamma=0.95,vignette=PI/5`;
   const darkOverlay = `drawbox=x=0:y=ih*0.60:w=iw:h=ih*0.40:color=black@0.55:t=fill`;
 
