@@ -172,7 +172,7 @@ async function getAllSceneImages(scenes, outputDir) {
 
   await generateCharacterReferenceIfMissing();
 
-  const BATCH_SIZE = 2;
+  const BATCH_SIZE = 1; // Pollinations allows only 1 concurrent request per IP
   const rawResults = new Array(scenes.length);
 
   for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
@@ -180,7 +180,7 @@ async function getAllSceneImages(scenes, outputDir) {
     console.log(`  -> Generating images ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length}...`);
     const batchResults = await Promise.all(
       batch.map(async (scene, idx) => {
-        await new Promise((r) => setTimeout(r, idx * 500));
+        await new Promise((r) => setTimeout(r, idx * 500 + 3000));
         try {
           const { filePath, source } = await generateSceneImageBestOf(scene, outputDir);
           return { filePath, source, error: filePath ? null : 'Image generation failed' };
