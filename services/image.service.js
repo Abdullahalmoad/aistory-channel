@@ -21,6 +21,37 @@ const STYLE_LOCK =
   'no gradients, no 3D render look, no photorealism. Wide cinematic landscape ' +
   'composition. No text, no watermark, no logo, no captions.';
 
+// Detects the emotional tone of a scene from its narration/image prompt text
+// and appends a matching facial-expression / body-language description so
+// the recurring character's pose stays consistent with the scene's mood
+// (text-only, no extra images or API calls - works with Pollinations as-is).
+const MOOD_EXPRESSIONS = [
+  { keywords: ['fear', 'afraid', 'terrified', 'danger', 'threat', 'predator', 'attack'],
+    expression: 'wide fearful eyes, tense crouched posture, alert defensive stance' },
+  { keywords: ['angry', 'furious', 'rage', 'fight', 'conflict'],
+    expression: 'furrowed brow, clenched jaw, aggressive forward-leaning stance' },
+  { keywords: ['surprise', 'shock', 'sudden', 'unexpected', 'discover'],
+    expression: 'wide-open eyes, raised eyebrows, mouth slightly open in surprise' },
+  { keywords: ['sad', 'grief', 'loss', 'mourn', 'alone', 'lonely'],
+    expression: 'downcast eyes, slumped shoulders, weary posture' },
+  { keywords: ['happy', 'joy', 'celebrate', 'relief', 'success', 'triumph'],
+    expression: 'warm content expression, relaxed open posture' },
+  { keywords: ['curious', 'wonder', 'examine', 'investigate', 'study'],
+    expression: 'tilted head, focused curious gaze, leaning in slightly' },
+  { keywords: ['exhaust', 'tired', 'weak', 'struggle', 'starving', 'cold'],
+    expression: 'hunched exhausted posture, heavy tired eyes' },
+];
+
+function detectExpression(sceneText) {
+  const lower = (sceneText || '').toLowerCase();
+  for (const mood of MOOD_EXPRESSIONS) {
+    if (mood.keywords.some((k) => lower.includes(k))) {
+      return mood.expression;
+    }
+  }
+  return null;
+}
+
 function isValidImage(filePath) {
   try {
     return fs.statSync(filePath).size > 15000;
@@ -38,7 +69,6 @@ function runFfmpeg(args) {
   });
 }
 
-// Sharpen + slight upscale pass (no external model, pure ffmpeg unsharp filter).
 async function enhanceImage(filePath) {
   const tmpPath = filePath.replace(/(\.\w+)$/, '.enhanced$1');
   try {
@@ -109,13 +139,17 @@ async function generateCharacterReferenceIfMissing() {
   throw new Error(`Character reference generation failed after 3 attempts: ${lastError?.message}`);
 }
 
-// Best-of-N candidate picker removed: generates exactly ONE image per scene directly.
 async function generateSceneImageBestOf(scene, outputDir) {
   if (!scene.image_prompt) {
     throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
   }
 
-  const prompt = `${STYLE_LOCK} The main character is ${CHARACTER_DESCRIPTION}. Scene: ${scene.image_prompt}`;
+  const expression = detectExpression(`${scene.text || ''} ${scene.image_prompt}`);
+  const characterLine = expression
+    ? `${CHARACTER_DESCRIPTION}, with ${expression}`
+    : CHARACTER_DESCRIPTION;
+
+  const prompt = `${STYLE_LOCK} The main character is ${characterLine}. Scene: ${scene.image_prompt}`;
   const finalPath = path.join(outputDir, `scene-${scene.scene_order}.png`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
