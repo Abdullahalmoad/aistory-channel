@@ -32,7 +32,7 @@ async function runPipelineForTopic(topic) {
 
   console.log('[2/6] Generating narration audio...');
   const audioPath = path.join(workDir, 'narration.mp3');
-  await generateNarrationAudio(script.scenes, { outputPath: audioPath });
+  await generateNarrationAudio(script.scenes, { outputPath: audioPath, narrativeStyle });
 
   console.log('[3/6] Fetching/generating images...');
   const imagesDir = path.join(workDir, 'images');
@@ -124,7 +124,7 @@ async function runMorningPipeline(topic) {
   console.time('step2_audio');
   console.log('[2/6] Generating narration audio...');
   const audioPath = path.join(workDir, 'narration.mp3');
-  await generateNarrationAudio(script.scenes, { outputPath: audioPath });
+  await generateNarrationAudio(script.scenes, { outputPath: audioPath, narrativeStyle });
 
   console.timeEnd('step2_audio');
   console.time('step3_images');

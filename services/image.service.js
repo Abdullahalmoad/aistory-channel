@@ -1,17 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
-// endpoint قديم منفصل عن gen.pollinations.ai - مجاني تماماً بدون مفتاح API،
-// بدون حد يومي موثق، بس موديل flux بس (بدون kontext).
 const IMAGE_BASE = 'https://image.pollinations.ai/prompt';
 const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'flux';
 const FETCH_TIMEOUT_MS = 180000;
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const EVAL_MODEL = process.env.GEMINI_EVAL_MODEL || 'gemini-2.5-flash';
-const GEMINI_EVAL_URL = `https://generativelanguage.googleapis.com/v1beta/models/${EVAL_MODEL}:generateContent`;
-
-const CANDIDATE_COUNT = Math.max(1, parseInt(process.env.IMAGE_CANDIDATE_COUNT || '2', 10));
 
 const CHARACTER_REF_PATH = path.join(__dirname, '..', 'assets', 'character-reference.png');
 
@@ -36,11 +29,33 @@ function isValidImage(filePath) {
   }
 }
 
-function fileToInlinePart(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
-  const data = fs.readFileSync(filePath).toString('base64');
-  return { inline_data: { mime_type: mimeType, data } };
+function runFfmpeg(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', ['-y', ...args]);
+    let stderr = '';
+    proc.stderr.on('data', (d) => (stderr += d.toString()));
+    proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(stderr.slice(-1500)))));
+  });
+}
+
+// Sharpen + slight upscale pass (no external model, pure ffmpeg unsharp filter).
+async function enhanceImage(filePath) {
+  const tmpPath = filePath.replace(/(\.\w+)$/, '.enhanced$1');
+  try {
+    await runFfmpeg([
+      '-i', filePath,
+      '-vf', "scale=iw*1.1:ih*1.1:flags=lanczos,unsharp=5:5:0.8:5:5:0.4",
+      tmpPath,
+    ]);
+    if (isValidImage(tmpPath)) {
+      fs.renameSync(tmpPath, filePath);
+    } else {
+      try { fs.unlinkSync(tmpPath); } catch {}
+    }
+  } catch (err) {
+    console.warn(`  -> Sharpening skipped (${err.message})`);
+    try { fs.unlinkSync(tmpPath); } catch {}
+  }
 }
 
 async function downloadImageResponse(res, destPath) {
@@ -56,6 +71,7 @@ async function downloadImageResponse(res, destPath) {
     try { fs.unlinkSync(destPath); } catch {}
     throw new Error('Image failed quality check');
   }
+  await enhanceImage(destPath);
   return destPath;
 }
 
@@ -93,100 +109,28 @@ async function generateCharacterReferenceIfMissing() {
   throw new Error(`Character reference generation failed after 3 attempts: ${lastError?.message}`);
 }
 
-async function generateOneCandidate(scene, destPath) {
-  const prompt = `${STYLE_LOCK} The main character is ${CHARACTER_DESCRIPTION}. Scene: ${scene.image_prompt}`;
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await generateFluxImage(prompt, destPath);
-      return destPath;
-    } catch (err) {
-      console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
-      if (attempt < 3) {
-        const backoff = Math.min(8000, 1500 * Math.pow(2, attempt - 1));
-        await new Promise((r) => setTimeout(r, backoff));
-      } else {
-        return null;
-      }
-    }
-  }
-  return null;
-}
-
-async function pickBestCandidate(scene, candidatePaths) {
-  if (!GEMINI_API_KEY) return 0;
-
-  const imageParts = candidatePaths.map(fileToInlinePart);
-  const prompt =
-    `You are judging ${candidatePaths.length} candidate illustrations for the same video scene, ` +
-    `shown in order (Image 1, Image 2, ...). Scene description: "${scene.image_prompt}". ` +
-    `Pick the image that best matches the scene description and has the clearest composition. ` +
-    `Respond with ONLY a JSON object like {"best": 1} - no explanation, no markdown.`;
-
-  const res = await fetch(`${GEMINI_EVAL_URL}?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [...imageParts, { text: prompt }] }] }),
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Evaluation request failed: ${res.status} ${body.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text || '';
-  const match = text.match(/"best"\s*:\s*(\d+)/) || text.match(/\d+/);
-  if (!match) throw new Error(`Could not parse evaluation response: ${text.slice(0, 150)}`);
-
-  const chosen = parseInt(match[1] || match[0], 10);
-  if (!chosen || chosen < 1 || chosen > candidatePaths.length) {
-    throw new Error(`Evaluation returned out-of-range choice: ${chosen}`);
-  }
-  console.log(`  -> Scene ${scene.scene_order}: picked candidate ${chosen}/${candidatePaths.length}`);
-  return chosen - 1;
-}
-
+// Best-of-N candidate picker removed: generates exactly ONE image per scene directly.
 async function generateSceneImageBestOf(scene, outputDir) {
   if (!scene.image_prompt) {
     throw new Error(`Scene ${scene.scene_order} has no image_prompt`);
   }
 
-  const candidatePaths = [];
-  for (let i = 0; i < CANDIDATE_COUNT; i++) {
-    const candDest = path.join(outputDir, `scene-${scene.scene_order}-cand${i + 1}.png`);
-    const result = await generateOneCandidate(scene, candDest);
-    if (result) candidatePaths.push(result);
-  }
-
-  if (candidatePaths.length === 0) {
-    return { filePath: null, source: null };
-  }
-
+  const prompt = `${STYLE_LOCK} The main character is ${CHARACTER_DESCRIPTION}. Scene: ${scene.image_prompt}`;
   const finalPath = path.join(outputDir, `scene-${scene.scene_order}.png`);
 
-  if (candidatePaths.length === 1) {
-    fs.renameSync(candidatePaths[0], finalPath);
-    return { filePath: finalPath, source: `pollinations-${IMAGE_MODEL}` };
-  }
-
-  let bestIndex = 0;
-  try {
-    bestIndex = await pickBestCandidate(scene, candidatePaths);
-  } catch (err) {
-    console.warn(`  -> Evaluation failed for scene ${scene.scene_order}, keeping first candidate: ${err.message}`);
-  }
-
-  candidatePaths.forEach((p, i) => {
-    if (i === bestIndex) {
-      fs.renameSync(p, finalPath);
-    } else {
-      try { fs.unlinkSync(p); } catch {}
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await generateFluxImage(prompt, finalPath);
+      return { filePath: finalPath, source: `pollinations-${IMAGE_MODEL}` };
+    } catch (err) {
+      console.warn(`Image attempt ${attempt}/3 failed for scene ${scene.scene_order}: ${err.message}`);
+      if (attempt < 3) {
+        const backoff = Math.min(8000, 1500 * Math.pow(2, attempt - 1));
+        await new Promise((r) => setTimeout(r, backoff));
+      }
     }
-  });
-
-  return { filePath: finalPath, source: `pollinations-${IMAGE_MODEL}` };
+  }
+  return { filePath: null, source: null };
 }
 
 async function getAllSceneImages(scenes, outputDir) {
@@ -199,13 +143,13 @@ async function getAllSceneImages(scenes, outputDir) {
 
   for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
     const batch = scenes.slice(i, i + BATCH_SIZE);
-    console.log(`  -> Generating images ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length} (${CANDIDATE_COUNT} candidate(s) each)...`);
+    console.log(`  -> Generating images ${i + 1}-${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length}...`);
     const batchResults = await Promise.all(
       batch.map(async (scene, idx) => {
         await new Promise((r) => setTimeout(r, idx * 500));
         try {
           const { filePath, source } = await generateSceneImageBestOf(scene, outputDir);
-          return { filePath, source, error: filePath ? null : 'All candidates failed' };
+          return { filePath, source, error: filePath ? null : 'Image generation failed' };
         } catch (err) {
           return { filePath: null, source: null, error: err.message };
         }
