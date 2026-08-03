@@ -12,7 +12,7 @@ async function generateStyledImage(sceneDescription, outputPath) {
     const encodedPrompt = encodeURIComponent(fullPrompt);
     
     // استخدام sdxl أو turbo بدل flux لأنه يلتزم بالـ Vector بشكل أفضل في الحسابات المجانية
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1084&height=1920&nologo=true&seed=${seed}&model=turbo`;
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1084&height=1920&nologo=true&seed=${seed}&model=flux`;
 
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error(`Failed to generate image: ${response.statusText}`);
