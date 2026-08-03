@@ -344,9 +344,11 @@ async function renderShortTeaser({ longVideoPath, scenes, workDir, outputPath })
 }
 
 const CTA_TEXTS = [
-  'Full story on the channel',
-  'The full case is on the channel',
-  'Watch the whole story now',
+  'Like this video and follow for more',
+  'Follow for the full story',
+  'Like & Follow for more stories like this',
+  'If you enjoyed this, hit like and follow',
+  'Full story on the channel - Like & Follow',
 ];
 
 function pickCtaText() {
