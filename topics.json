@@ -71,6 +71,46 @@
     {
       "topic": "How did ancient humans first discover they could tame wild animals?",
       "used": true
+    },
+    {
+      "topic": "What if ancient humans had no shelter in a desert?",
+      "used": true
+    },
+    {
+      "topic": "How did ancient tribes navigate without a compass?",
+      "used": false
+    },
+    {
+      "topic": "What happened if you broke a tool in the Stone Age?",
+      "used": false
+    },
+    {
+      "topic": "How did ancient humans protect themselves from swarming insects?",
+      "used": false
+    },
+    {
+      "topic": "What if a Stone Age hunter missed their prey?",
+      "used": false
+    },
+    {
+      "topic": "How did ancient humans deal with a snake bite?",
+      "used": false
+    },
+    {
+      "topic": "What if ancient humans got lost in a cave?",
+      "used": false
+    },
+    {
+      "topic": "How did ancient humans preserve food for winter?",
+      "used": false
+    },
+    {
+      "topic": "What if a Stone Age child got separated at night?",
+      "used": false
+    },
+    {
+      "topic": "How did ancient humans build a shelter in a hurricane?",
+      "used": false
     }
   ]
 }
