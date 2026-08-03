@@ -37,7 +37,7 @@ function assignSceneTimestamps(scenes, words, { maxSceneSeconds = 10 } = {}) {
       console.warn(`[transcribe] scene missing text, order=${scene.scene_order}`);
       scene.text = scene.text || '';
     }
-    const sceneWordCount = scene.text.split(/\s+/).filter(Boolean).length;
+    const sceneWordCount = (scene.text || '').split(/\s+/).filter(Boolean).length;
     const sliceEnd = Math.min(wordCursor + sceneWordCount, words.length);
     const sceneWords = words.slice(wordCursor, sliceEnd);
     rawAssigned.push({ scene, sceneWords });
