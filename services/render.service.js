@@ -216,6 +216,7 @@ async function renderLongVideo({ scenes, words = null, audioPath, musicPath, wor
   const clipPaths = validScenes.map((s) => clipPathsBySceneOrder[s.scene_order]);
   const renderedDurations = validScenes.map((s) => renderedDurationBySceneOrder[s.scene_order]);
 
+  console.log(`  -> validScenes=${validScenes.length}, clipPaths=${clipPaths.length}, renderedDurations=${JSON.stringify(renderedDurations)}`);
   const silentVideoPath = path.join(workDir, 'silent-video.mp4');
 
   if (clipPaths.length === 1) {
