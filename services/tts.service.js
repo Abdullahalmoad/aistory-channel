@@ -12,7 +12,6 @@ const SCENES_PER_BATCH = 8;
 const VOICE_POOL = [
   'en-US-EricNeural',
   'en-US-GuyNeural',
-  'en-US-DavisNeural',
   'en-US-TonyNeural',
   'en-US-ChristopherNeural',
 ];
