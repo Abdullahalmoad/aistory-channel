@@ -28,17 +28,17 @@ async function getAllSceneImages(scenes, outputDir = './assets/images') {
         fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    const imagePaths = [];
+    const scenesWithImages = [];
     for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
         const description = scene.visualPrompt || scene.text || `Scene ${i + 1}`;
         const outputPath = path.join(outputDir, `scene_${i + 1}.png`);
         
         await generateStyledImage(description, outputPath);
-        imagePaths.push(outputPath);
+        scenesWithImages.push({ ...scene, image_file: outputPath });
     }
 
-    return imagePaths;
+    return scenesWithImages;
 }
 
 module.exports = { generateStyledImage, getAllSceneImages };
