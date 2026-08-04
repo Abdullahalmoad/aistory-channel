@@ -78,7 +78,7 @@ function pickTransition() {
   return TRANSITIONS[Math.floor(Math.random() * TRANSITIONS.length)];
 }
 
-async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080, avatarPath = null, captionStyle = null, workDir = null, words = null, extraTail = 0 } = {}) {
+async function renderSceneClip(scene, outputPath, { width = 1080, height = 1920, avatarPath = null, captionStyle = null, workDir = null, words = null, extraTail = 0 } = {}) {
   const baseDuration = Math.max(scene.end_time - scene.start_time, 0.5);
   const duration = baseDuration + extraTail;
   const fps = 60;
