@@ -3,7 +3,7 @@ const path = require('path');
 
 async function generateStyledImage(sceneDescription, outputPath) {
     // استخدام وسم vector art و line art مباشر وصارم
-    const stylePrefix = "flat 2d vector art, simple hand drawn line art, doodle caveman, clean ink lines, beige paper background, solid colors, no gradients, no 3d, no shadows";
+    const stylePrefix = "flat design vector illustration, clean bold black outlines, solid flat colors, no gradients, no shading, minimalist cartoon character, muted earthy color palette beige brown terracotta, plain cream background";
     const fullPrompt = `${stylePrefix}, ${sceneDescription}`;
 
     console.log(`[Image Service] Generating 2D Vector image for: ${sceneDescription}`);
