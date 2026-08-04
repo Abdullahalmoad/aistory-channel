@@ -96,8 +96,8 @@ async function renderSceneClip(scene, outputPath, { width = 1920, height = 1080,
       `${COLOR_GRADE},format=yuv420p`;
   } else {
     baseFilter =
-      `scale=${Math.round(width * 1.3)}:${Math.round(height * 1.3)}:force_original_aspect_ratio=increase,crop=${Math.round(width * 1.3)}:${Math.round(height * 1.3)},` +
-      `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.08-0.08*on/${Math.round(revealSec * fps)},min(zoom+0.0007,1.15))':` +
+      `scale=${Math.round(width * 1.12)}:${Math.round(height * 1.12)}:force_original_aspect_ratio=increase,crop=${Math.round(width * 1.12)}:${Math.round(height * 1.12)},` +
+      `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.03-0.03*on/${Math.round(revealSec * fps)},min(zoom+0.0004,1.06))':` +
       `x='iw/2-(iw/zoom/2)+${pan.x}*(on/${totalFrames})':y='ih/2-(ih/zoom/2)+${pan.y}*(on/${totalFrames})':` +
       `d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
       `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
