@@ -111,6 +111,46 @@
     {
       "topic": "How did ancient humans build a shelter in a hurricane?",
       "used": true
+    },
+    {
+      "topic": "What if ancient humans had no salt?",
+      "used": true
+    },
+    {
+      "topic": "How did ancient tribes handle food poisoning?",
+      "used": false
+    },
+    {
+      "topic": "What happened if a Stone Age child broke a limb?",
+      "used": false
+    },
+    {
+      "topic": "Can ancient human diets cure modern diseases?",
+      "used": false
+    },
+    {
+      "topic": "How did ancient humans escape a wildfire?",
+      "used": false
+    },
+    {
+      "topic": "What if ancient humans had no sewing needles?",
+      "used": false
+    },
+    {
+      "topic": "How did ancient humans stop a bleeding wound?",
+      "used": false
+    },
+    {
+      "topic": "What happened if a Stone Age hunter got trapped?",
+      "used": false
+    },
+    {
+      "topic": "Did ancient humans have a cure for altitude sickness?",
+      "used": false
+    },
+    {
+      "topic": "How did ancient humans protect their eyes from snowblindness?",
+      "used": false
     }
   ]
 }
