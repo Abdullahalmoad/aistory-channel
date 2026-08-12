@@ -16,7 +16,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
-const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'kontext';
+const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'flux';
 
 const OUTPUT_DIR = path.join(__dirname, 'assets', 'host');
 const RAW_PATH = path.join(OUTPUT_DIR, 'avatar-raw.png');
@@ -42,7 +42,8 @@ const COLORKEY_SIMILARITY = '0.20'; // increase if green fringing remains, decre
 const COLORKEY_BLEND = '0.05';
 
 async function downloadToFile(url, destPath) {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` } });
+  const headers = POLLINATIONS_KEY ? { Authorization: `Bearer ${POLLINATIONS_KEY}` } : {};
+  const res = await fetch(url, { headers });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Download failed: HTTP ${res.status} ${body.slice(0, 300)}`);
@@ -61,14 +62,11 @@ function runFfmpeg(args) {
 }
 
 async function main() {
-  if (!POLLINATIONS_KEY) {
-    throw new Error('POLLINATIONS_KEY is not set. Get a free key at https://enter.pollinations.ai first.');
-  }
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
   console.log('Generating host avatar via Pollinations.ai...');
   const encodedPrompt = encodeURIComponent(AVATAR_PROMPT);
-  const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=${IMAGE_MODEL}&width=800&height=800`;
+  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=800&nologo=true&seed=${SEED}&model=${IMAGE_MODEL}`;
   await downloadToFile(url, RAW_PATH);
   console.log(`Raw avatar saved: ${RAW_PATH}`);
 
