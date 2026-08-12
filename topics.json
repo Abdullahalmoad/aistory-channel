@@ -1,3 +1,44 @@
 {
-  "topics": []
+  "topics": [
+    {
+      "topic": "What drove the Tylenol poisonings serial killer?",
+      "used": true
+    },
+    {
+      "topic": "Who abducted the Sodder children on Christmas Eve?",
+      "used": false
+    },
+    {
+      "topic": "What sparked the deadly West Phoenix serial shooter?",
+      "used": false
+    },
+    {
+      "topic": "Who killed the woman with 88 stab wounds in her home?",
+      "used": false
+    },
+    {
+      "topic": "What happened to the crew of the USS Cyclops?",
+      "used": false
+    },
+    {
+      "topic": "Who murdered the family in the farmhouse fire?",
+      "used": false
+    },
+    {
+      "topic": "What caused the disappearance of the Martin family?",
+      "used": false
+    },
+    {
+      "topic": "Who was behind the murder of the Grimes sisters?",
+      "used": false
+    },
+    {
+      "topic": "What led to the death of the boy in the box?",
+      "used": false
+    },
+    {
+      "topic": "Who killed the woman found dead in the hotel water tank?",
+      "used": false
+    }
+  ]
 }
