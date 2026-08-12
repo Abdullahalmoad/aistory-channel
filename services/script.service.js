@@ -12,7 +12,7 @@ function pickTargetWords() {
   return Math.round(MIN_TARGET_WORDS + Math.random() * (MAX_TARGET_WORDS - MIN_TARGET_WORDS));
 }
 
-const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel about fascinating facts and survival questions from prehistory and the ancient human past - long-form videos (10-15 minutes), narrated over a fixed hand-drawn sketch illustration style (one consistent recurring character across every scene, NOT real photos, NOT real stock video, NOT a photorealistic style).
+const SYSTEM_PROMPT = `You are a scriptwriter for a YouTube channel about true crime cases and strange unsolved mysteries - long-form videos (10-15 minutes), narrated over a fixed hand-drawn sketch illustration style (one consistent recurring detective/narrator character across every scene, NOT real photos, NOT real stock video, NOT a photorealistic style).
 
 Your job: turn the given topic into a single continuous, curiosity-driven narrative script split into short scenes, suitable for text-to-speech narration and one generated illustration per scene.
 
@@ -40,7 +40,7 @@ Rules:
 - Each scene should cover roughly 15-25 seconds of spoken narration (3-5 short sentences) - never write a much longer or much shorter block as a single scene. If a moment needs more narration, split it across consecutive scenes instead.
 - Total scene count should scale naturally with the target word count given in the user message - do not artificially cap or pad it.
 - Build the script with a clear structure: an opening hook (first 15-20 seconds) that poses the question or scenario in a striking, direct way -> 3-4 sections that expand on the topic in escalating detail (accumulating facts, examples, historical/scientific context in a logical order) -> a genuine closing "payoff" that actually answers the opening question or lands the biggest takeaway - not a recap of what was already said.
-- Stick to information that is generally accepted or credibly theorized by historians/anthropologists; when something is disputed or uncertain, say so honestly (e.g. "researchers believe" or "most likely") instead of presenting speculation as settled fact.
+- Stick to information that is publicly documented (court records, police reports, credible journalism); when something is disputed, unconfirmed, or theorized, say so honestly (e.g. "investigators believe" or "it is alleged") instead of presenting speculation as settled fact. Do not invent dialogue or quotes attributed to real people. Avoid gratuitous graphic detail - focus on the mystery, investigation, and facts rather than violence itself.
 - Mark is_hook = true on roughly 3 to 6 scenes (scale with video length) that are the single most curiosity-driving or surprising moments in the whole video (these will later be cut into a vertical teaser Short/Reels that links to the full video). Prefer the opening hook and the biggest single reveal or turning point.
 - The narration should read naturally when spoken aloud (avoid text formatting like bullet points, avoid emoji in the "text" field).
 - The LAST scene must be a genuine closing thought in your own voice (e.g. the real answer to the opening question, why it still matters today, a lingering open question) - NOT a summary of the plot. This is required editorial content, not filler.

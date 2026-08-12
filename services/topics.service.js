@@ -7,7 +7,7 @@ const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 const TOPICS_PATH = path.join(__dirname, '..', 'topics.json');
 
-const CATEGORIES = ['ancient human survival in harsh conditions', 'strange prehistoric habits and rituals', 'medicine and healing before modern science', 'animal behavior and its link to early humans', 'daily-life challenges in the Stone Age', 'archaeological discoveries that changed what we know about our ancestors'];
+const CATEGORIES = ['unsolved murder cases', 'mysterious disappearances', 'strange true crime investigations', 'chilling cold cases', 'bizarre unexplained events', 'conspiracy-worthy real-life mysteries'];
 
 function loadTopics() {
   const raw = fs.readFileSync(TOPICS_PATH, 'utf-8');
@@ -21,7 +21,7 @@ function saveTopics(data) {
 async function generateNewTopics(existingTopics, count = 10) {
   const existingList = existingTopics.map((t) => `- ${t.topic}`).join('\n');
   const categoryList = CATEGORIES.join(', ');
-  const prompt = `You generate topic ideas for a YouTube channel that makes long-form (10-15 minute) videos about fascinating facts and survival questions from prehistory and the ancient human past, across these angles: ${categoryList}. The channel's whole identity is curiosity and "did you know / what would happen if" intrigue - NOT a horror or true-crime channel.
+  const prompt = `You generate topic ideas for a YouTube channel that makes long-form (10-15 minute) videos about true crime cases and real unsolved mysteries, across these angles: ${categoryList}. The channel's whole identity is investigative curiosity and "what really happened" intrigue - grounded in real, publicly documented cases, not fabricated horror stories.
 
 Here are topics already used - do NOT repeat these or anything too similar:
 ${existingList}
@@ -29,10 +29,10 @@ ${existingList}
 Generate ${count} brand new topic ideas, mixing across all the categories above (not just one).
 
 Hard requirements for every topic:
-- Phrase it as a short curiosity-driven question or hook, under 12 words - matching this exact style: "How did ancient humans keep a fire burning for days without matches?" or "What happened if someone got separated from their tribe in the Stone Age?".
-- Ground it in a real, generally-known anthropological or historical fact/theory (simplified for narration is fine, but it must not be pure invention with no basis).
-- It needs a clear "survival or human challenge" angle that can support a full narrative with a beginning, build-up, and payoff - not just a flat one-line trivia fact.
-- Avoid anything purely academic/abstract with no concrete survival or human-challenge angle.
+- Phrase it as a short curiosity-driven question or hook, under 12 words - matching this exact style: "What really happened to the family that vanished from their locked house?" or "Who killed the hitchhiker no one could identify for 40 years?".
+- Ground it in a real, publicly documented case or credibly reported event (simplified for narration is fine, but it must not be pure invention with no basis).
+- It needs a clear "investigation or mystery" angle that can support a full narrative with a beginning, build-up, and payoff - not just a flat one-line trivia fact.
+- Avoid anything purely academic/abstract with no concrete investigative or mystery angle.
 
 Return ONLY a JSON array of strings, nothing else, no markdown formatting.`;
 

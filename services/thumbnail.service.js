@@ -47,11 +47,11 @@ async function generateThumbnail(script, outputDir, scenes = null) {
   if (realPhotoScene) {
     fs.copyFileSync(realPhotoScene.image_file, bgPath);
   } else {
-    const scenePrompt = script.thumbnail_image_prompt || script.title || 'a dramatic prehistoric scene';
+    const scenePrompt = script.thumbnail_image_prompt || script.title || 'a dramatic noir mystery scene';
     const STYLE_LOCK =
-      'Hand-drawn sketch illustration style, minimalist stick-figure prehistoric human character ' +
-      'with a round head, messy dark hair, simple dot eyes, wearing rough fur/hide clothing. ' +
-      'Muted earthy color palette, visible paper texture, loose hand-inked linework, flat cartoon ' +
+      'Hand-drawn sketch illustration style, minimalist stick-figure detective/narrator character ' +
+      'with a round head, wearing a trench coat and fedora hat, simple dot eyes, holding a magnifying glass. ' +
+      'Muted noir color palette, visible paper texture, loose hand-inked linework, flat cartoon ' +
       'coloring, dramatic lighting, high contrast, cinematic. No text, no watermark.';
     const fullPrompt = `${STYLE_LOCK} Scene: ${scenePrompt}`;
     await generateStandaloneImage(fullPrompt, bgPath);

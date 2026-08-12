@@ -27,11 +27,11 @@ const FINAL_PATH = path.join(OUTPUT_DIR, 'avatar.png');
 // عبارة "solid pure green background" موجودة - الخطوة اللي تحت تعتمد عليها
 // لإزالة الخلفية.
 const AVATAR_PROMPT =
-  'Hand-drawn sketch illustration style, minimalist stick-figure prehistoric human ' +
-  'character with a round head, messy dark hair, simple dot eyes, wearing rough ' +
-  'fur/hide clothing, holding a simple wooden spear. Muted earthy tones, visible ' +
-  'paper texture, loose hand-inked linework, flat cartoon coloring. Chest-up ' +
-  'portrait, facing forward, solid pure green background, no text, no watermark';
+  'Hand-drawn sketch illustration style, minimalist stick-figure detective/narrator ' +
+  'character with a round head, wearing a trench coat and fedora hat, simple dot eyes, ' +
+  'holding a magnifying glass. Muted noir tones, visible paper texture, loose hand-inked ' +
+  'linework, flat cartoon coloring. Chest-up portrait, facing forward, solid pure green ' +
+  'background, no text, no watermark';
 
 // seed غير مستخدم مع موديلات kontext/nanobanana (يدعمه بس flux/zimage) - يبقى هنا
 // كتوثيق فقط لو رجعت تستخدم موديل يدعمه.
