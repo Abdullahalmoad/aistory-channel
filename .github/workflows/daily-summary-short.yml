@@ -1,0 +1,69 @@
+name: Daily Summary Short Publish
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  publish-summary-short:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install yt-dlp
+        run: sudo pip install -U yt-dlp --break-system-packages || sudo pip install -U yt-dlp
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install faster-whisper
+        run: pip install faster-whisper --break-system-packages || pip install faster-whisper
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Run summary Short pipeline (discover source video, summarize in English, cut clips, upload Short only)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: llama-3.3-70b-versatile
+          SUMMARY_TTS_VOICE: en-US-EricNeural
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_REDIRECT_URI: urn:ietf:wg:oauth:2.0:oob
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FIRST_WEEK_MODE: ${{ vars.FIRST_WEEK_MODE || 'true' }}
+        run: node -e "require('./pipeline-summary').runDailySummaryShort().then(()=>process.exit(0)).catch(()=>process.exit(1))"
+
+      - name: Commit updated used-videos.json (avoids repeating source videos)
+        if: always()
+        run: |
+          git config user.name "ai-story-channel-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/used-videos.json
+          git diff --staged --quiet || git commit -m "Mark source video as used [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 5
+          done

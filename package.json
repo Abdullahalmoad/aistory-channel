@@ -6,7 +6,8 @@
   "main": "scheduler.js",
   "scripts": {
     "start": "node scheduler.js",
-    "run:once": "node -e \"require('./pipeline').runDailyPipeline().then(()=>process.exit(0)).catch(()=>process.exit(1))\""
+    "run:once": "node -e \"require('./pipeline').runDailyPipeline().then(()=>process.exit(0)).catch(()=>process.exit(1))\"",
+    "run:summary-short": "node -e \"require('./pipeline-summary').runDailySummaryShort().then(()=>process.exit(0)).catch(()=>process.exit(1))\""
   },
   "dependencies": {
     "dotenv": "^16.4.5",
