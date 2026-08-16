@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { EdgeTTS } = require('edge-tts-universal');
-const { buildSrtFromWords } = require('./srt.util');
+const { buildAssFromWords } = require('./srt.util');
 
 const NARRATOR_VOICE = process.env.SUMMARY_TTS_VOICE || 'en-US-EricNeural';
 const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
@@ -29,7 +29,6 @@ function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 10 * 60 * 1000) {
   });
 }
 
-// Generates the new English narration audio from the summary script.
 async function generateEnglishNarration(narrationText, outputPath) {
   const tts = new EdgeTTS(narrationText, NARRATOR_VOICE, { rate: '+0%', volume: '+0%', pitch: '+0Hz' });
   const result = await tts.synthesize();
@@ -38,8 +37,6 @@ async function generateEnglishNarration(narrationText, outputPath) {
   return outputPath;
 }
 
-// Gets word-level timestamps for the (English) narration we just generated,
-// so we can burn in synced captions.
 function getNarrationWordTimestamps(audioPath) {
   return new Promise((resolve, reject) => {
     const outputJsonPath = audioPath.replace(/\.mp3$/, '') + '.words.json';
@@ -57,11 +54,15 @@ function getNarrationWordTimestamps(audioPath) {
   });
 }
 
-// Cuts each selected clip from the source video (video only, no original
-// audio), crops/scales to vertical 1080x1920, and concatenates them.
 async function buildClippedVideo(sourceVideoPath, clips, workDir) {
   fs.mkdirSync(workDir, { recursive: true });
   const segmentPaths = [];
+
+  const fitFilter =
+    'split=2[bg][fg];' +
+    '[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:5[bgblur];' +
+    '[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fgscaled];' +
+    '[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2[vout]';
 
   for (let i = 0; i < clips.length; i++) {
     const { start, end } = clips[i];
@@ -73,7 +74,8 @@ async function buildClippedVideo(sourceVideoPath, clips, workDir) {
         '-i', sourceVideoPath,
         '-t', String(duration),
         '-an',
-        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+        '-filter_complex', fitFilter,
+        '-map', '[vout]',
         '-r', '30',
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
         segPath,
@@ -95,8 +97,6 @@ async function buildClippedVideo(sourceVideoPath, clips, workDir) {
   return concatenatedPath;
 }
 
-// Combines the silent clipped video with the new narration audio, looping/
-// trimming the video to match narration length, and burns in captions.
 function getDurationSeconds(filePath) {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath]);
@@ -107,14 +107,16 @@ function getDurationSeconds(filePath) {
 }
 
 async function assembleFinalShort({ clippedVideoPath, narrationAudioPath, words, workDir, outputPath }) {
-  const srtStylePath = path.join(workDir, 'captions.srt');
-  buildSrtFromWords(words, srtStylePath, 5);
+  const assPath = path.join(workDir, 'captions.ass');
+  buildAssFromWords(words, assPath, {
+    groupSize: 3,
+    videoWidth: 1080,
+    videoHeight: 1920,
+    fontSize: 58,
+    marginV: 220,
+  });
+  const assFilterPath = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
 
-  const captionStyle = "FontName=Arial,Bold=1,FontSize=26,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=100";
-
-  // If narration ends up longer than the clipped video (speech is slower
-  // than expected), loop the clipped video so it never runs out under the
-  // narration instead of getting cut off mid-sentence.
   const [videoDur, narrationDur] = await Promise.all([
     getDurationSeconds(clippedVideoPath),
     getDurationSeconds(narrationAudioPath),
@@ -134,7 +136,7 @@ async function assembleFinalShort({ clippedVideoPath, narrationAudioPath, words,
       '-i', narrationAudioPath,
       '-map', '0:v:0',
       '-map', '1:a:0',
-      '-vf', `subtitles=${srtStylePath}:force_style='${captionStyle}'`,
+      '-vf', `ass=${assFilterPath}`,
       '-shortest',
       '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
       '-c:a', 'aac', '-b:a', '160k',
