@@ -27,7 +27,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Install yt-dlp
-        run: sudo pip install -U yt-dlp --break-system-packages || sudo pip install -U yt-dlp
+        run: sudo pip install -U --pre "yt-dlp[default]" --break-system-packages || sudo pip install -U --pre "yt-dlp[default]"
 
       - name: Set up Python
         uses: actions/setup-python@v5
