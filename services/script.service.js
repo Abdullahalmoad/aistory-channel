@@ -58,6 +58,36 @@ function pickNarrativeStyle() {
   return NARRATIVE_STYLES[Math.floor(Math.random() * NARRATIVE_STYLES.length)];
 }
 
+// Asks Groq to pick which scenes best fit as a curiosity-driven teaser Short,
+// based on the actual story content (not just position in the video).
+async function pickHookScenesByContent(parsed) {
+  const pickerPrompt = `Here is a video titled "${parsed.title}".
+Description: ${parsed.description}
+
+Below are all its scenes as JSON (scene_order + text only). Pick the scene_order numbers of the scenes that are the MOST curiosity-driving, surprising, or emotionally striking moments in the story - the ones that would make the best vertical teaser Short/Reels that hooks viewers into watching the full video. Always include the opening scene (scene_order 1) and the final closing scene. Choose scenes whose combined narration would run under approximately 170 seconds when spoken aloud (roughly 15-25 seconds per scene, so aim for 10 to 18 scene_order values total, fewer if the story is short).
+
+Scenes:
+${JSON.stringify(parsed.scenes.map((s) => ({ scene_order: s.scene_order, text: s.text })))}
+
+Respond with STRICT JSON only, no commentary, in exactly this shape:
+{"hook_scene_orders": [1, 4, 7, 12]}`;
+
+  const pickerCompletion = await groq.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: 'system', content: 'You select the most compelling scenes from a video script for a short teaser. Respond with strict JSON only.' },
+      { role: 'user', content: pickerPrompt },
+    ],
+    temperature: 0.4,
+    max_tokens: 1000,
+    response_format: { type: 'json_object' },
+  });
+
+  const pickerRaw = pickerCompletion.choices[0]?.message?.content;
+  const pickerParsed = JSON.parse((pickerRaw || '{}').replace(/```json|```/g, '').trim());
+  return new Set((pickerParsed.hook_scene_orders || []).map(Number));
+}
+
 async function generateScript(topic, options = {}) {
   const { targetWords = pickTargetWords(topic) } = options;
 
@@ -104,12 +134,34 @@ Return the full script now as strict JSON matching the required shape exactly.`;
     image_prompt: scene.image_prompt || null,
   }));
 
-  const hookCount = parsed.scenes.filter((s) => s.is_hook).length;
+  let hookCount = parsed.scenes.filter((s) => s.is_hook).length;
   if (hookCount === 0) {
-    parsed.scenes[0].is_hook = true;
-    if (parsed.scenes.length > 1) {
-      const lastIdx = parsed.scenes.length - 1;
-      parsed.scenes[lastIdx].is_hook = true;
+    console.warn('[script.service] Groq did not mark any is_hook scenes - asking it to pick hook scenes based on content');
+    try {
+      const chosenOrders = await pickHookScenesByContent(parsed);
+      if (chosenOrders.size > 0) {
+        parsed.scenes.forEach((s) => {
+          if (chosenOrders.has(s.scene_order)) s.is_hook = true;
+        });
+        hookCount = parsed.scenes.filter((s) => s.is_hook).length;
+        console.log(`[script.service] Content-based hook picker selected ${hookCount} scenes`);
+      }
+    } catch (err) {
+      console.warn(`[script.service] Hook picker call failed: ${err.message}`);
+    }
+  }
+
+  // Last-resort fallback only if the content-based picker above also failed
+  // (e.g. network/API error) - spreads hooks across the story so the Short
+  // isn't built from just one or two scenes.
+  if (parsed.scenes.filter((s) => s.is_hook).length === 0) {
+    console.warn('[script.service] Falling back to spread selection for hook scenes');
+    const total = parsed.scenes.length;
+    const targetHooks = Math.min(18, Math.max(Math.min(10, total), Math.ceil(total * 0.35)));
+    const step = total / targetHooks;
+    for (let i = 0; i < targetHooks; i++) {
+      const idx = Math.min(total - 1, Math.round(i * step));
+      parsed.scenes[idx].is_hook = true;
     }
   }
 
