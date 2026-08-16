@@ -114,6 +114,28 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
     throw new Error('summarizeAndPickClips: Groq did not return valid narration/clips');
   }
 
+  // The model doesn't always follow the "use many short clips" instruction.
+  // Enforce it in code: split any clip longer than MAX_SEG_SECONDS into
+  // several shorter back-to-back sub-clips, so the final Short always has
+  // plenty of quick cuts (fast-paced summary feel) no matter what the model
+  // returned, while still covering the exact same source timestamp ranges
+  // (and therefore the same spread across the video) the model picked.
+  const MAX_SEG_SECONDS = 5;
+  const splitClips = [];
+  for (const c of parsed.clips) {
+    const dur = c.end - c.start;
+    if (dur <= MAX_SEG_SECONDS) {
+      splitClips.push(c);
+      continue;
+    }
+    const pieces = Math.ceil(dur / MAX_SEG_SECONDS);
+    const pieceLen = dur / pieces;
+    for (let i = 0; i < pieces; i++) {
+      splitClips.push({ start: c.start + i * pieceLen, end: c.start + (i + 1) * pieceLen });
+    }
+  }
+  parsed.clips = splitClips;
+
   let total = 0;
   const clampedClips = [];
   for (const c of parsed.clips) {
