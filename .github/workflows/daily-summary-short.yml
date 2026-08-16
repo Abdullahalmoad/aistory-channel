@@ -37,6 +37,9 @@ jobs:
       - name: Install faster-whisper
         run: pip install faster-whisper --break-system-packages || pip install faster-whisper
 
+      - name: Restore YouTube cookies
+        run: echo "${{ secrets.YT_COOKIES_B64 }}" | base64 -d > cookies.txt
+
       - name: Install Node dependencies
         run: npm install
 
