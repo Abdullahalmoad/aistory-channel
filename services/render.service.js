@@ -270,12 +270,50 @@ async function renderLongVideo({ scenes, words = null, audioPath, musicPath, wor
   return outputPath;
 }
 
+const MIN_SHORT_SECONDS = 60;   // never build a Short shorter than ~1 minute
+const MAX_SHORT_SECONDS = 175;  // stay safely under YouTube's 180s Shorts cap
+
+// Picks the scenes for the teaser Short using REAL spoken durations (from
+// Whisper timestamps assigned in transcribe.service.js), not the word-count
+// estimate used when the script was first written. Guarantees the final
+// Short lands between MIN_SHORT_SECONDS and MAX_SHORT_SECONDS.
+function selectHookScenesForShort(scenes, { min = MIN_SHORT_SECONDS, max = MAX_SHORT_SECONDS } = {}) {
+  const byOrder = [...scenes].sort((a, b) => a.scene_order - b.scene_order);
+  const sceneDuration = (s) => Math.max((s.end_time ?? 0) - (s.start_time ?? 0), 0.5);
+
+  let selected = byOrder.filter((s) => s.is_hook);
+  let total = selected.reduce((sum, s) => sum + sceneDuration(s), 0);
+
+  // Too short: pull in additional scenes (in story order) until we cross
+  // the minimum length, so the Short is never just a couple of seconds.
+  if (total < min) {
+    const selectedOrders = new Set(selected.map((s) => s.scene_order));
+    for (const scene of byOrder) {
+      if (total >= min) break;
+      if (selectedOrders.has(scene.scene_order)) continue;
+      selected.push(scene);
+      selectedOrders.add(scene.scene_order);
+      total += sceneDuration(scene);
+    }
+    selected.sort((a, b) => a.scene_order - b.scene_order);
+  }
+
+  // Too long: trim scenes from the middle/end (always keep the opening hook
+  // and the closing scene) until we're back under the hard cap.
+  while (selected.length > 2 && total > max) {
+    const dropIdx = selected.length - 2;
+    const [dropped] = selected.splice(dropIdx, 1);
+    total -= sceneDuration(dropped);
+  }
+
+  console.log(`  -> Short teaser: ${selected.length} scenes, ~${total.toFixed(1)}s total (target ${min}-${max}s)`);
+  return selected;
+}
+
 async function renderShortTeaser({ longVideoPath, scenes, words = null, workDir, outputPath }) {
   fs.mkdirSync(workDir, { recursive: true });
 
-  const hookScenes = scenes
-    .filter((s) => s.is_hook)
-    .sort((a, b) => a.scene_order - b.scene_order);
+  const hookScenes = selectHookScenesForShort(scenes);
 
   if (hookScenes.length === 0) {
     throw new Error('No hook scenes marked - cannot build teaser Short');
