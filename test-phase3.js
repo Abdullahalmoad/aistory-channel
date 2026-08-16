@@ -51,7 +51,7 @@ async function main() {
   if (failed.length > 0) console.warn(`  -> ${failed.length} image(s) failed, will be skipped`);
 
   console.log('[4/5] Transcribing for caption timing...');
-  const { scenes: scenesWithTimestamps } = await transcribeAndAssign(audioPath, scenesWithImages);
+  const { scenes: scenesWithTimestamps, words } = await transcribeAndAssign(audioPath, scenesWithImages);
 
   console.log('[5/5] Rendering long video + Short teaser (slow step, be patient)...');
   const longVideoPath = './test-phase3-long.mp4';
@@ -67,6 +67,7 @@ async function main() {
   await renderShortTeaser({
     longVideoPath,
     scenes: scenesWithTimestamps,
+    words,
     workDir: './test-phase3-short-work',
     outputPath: shortVideoPath,
   });

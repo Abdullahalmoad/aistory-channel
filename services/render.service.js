@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { buildSrtFromScenes, buildAssFromWords } = require('./srt.util');
+const { buildSrtFromScenes, buildAssFromWords, buildTiktokAssFromWords } = require('./srt.util');
 const { getHostAvatarPath } = require('./host.service');
 
 const TRANSITION_DURATION = 0.5;
@@ -78,7 +78,7 @@ function pickTransition() {
   return TRANSITIONS[Math.floor(Math.random() * TRANSITIONS.length)];
 }
 
-async function renderSceneClip(scene, outputPath, { width = 1080, height = 1920, avatarPath = null, captionStyle = null, workDir = null, words = null, extraTail = 0 } = {}) {
+async function renderSceneClip(scene, outputPath, { width = 1080, height = 1920, avatarPath = null, captionStyle = null, workDir = null, words = null, extraTail = 0, captionMode = 'karaoke' } = {}) {
   const baseDuration = Math.max(scene.end_time - scene.start_time, 0.5);
   const duration = baseDuration + extraTail;
   const fps = 60;
@@ -124,9 +124,12 @@ async function renderSceneClip(scene, outputPath, { width = 1080, height = 1920,
 
     let subtitleFilter;
     if (sceneWords && sceneWords.length > 0) {
-      // Karaoke-style pop/highlight captions (word-by-word), like CapCut auto-captions.
       const assPath = path.join(workDir, `scene-${scene.scene_order}.ass`);
-      buildAssFromWords(sceneWords, assPath, { videoWidth: width, videoHeight: height });
+      if (captionMode === 'tiktok') {
+        buildTiktokAssFromWords(sceneWords, assPath, { videoWidth: width, videoHeight: height });
+      } else {
+        buildAssFromWords(sceneWords, assPath, { videoWidth: width, videoHeight: height });
+      }
       subtitleFilter = `ass=${assPath.replace(/:/g, '\\:')}`;
     } else {
       // Fallback: no word timestamps for this scene, use plain styled subtitle.
@@ -267,7 +270,7 @@ async function renderLongVideo({ scenes, words = null, audioPath, musicPath, wor
   return outputPath;
 }
 
-async function renderShortTeaser({ longVideoPath, scenes, workDir, outputPath }) {
+async function renderShortTeaser({ longVideoPath, scenes, words = null, workDir, outputPath }) {
   fs.mkdirSync(workDir, { recursive: true });
 
   const hookScenes = scenes
@@ -278,66 +281,100 @@ async function renderShortTeaser({ longVideoPath, scenes, workDir, outputPath })
     throw new Error('No hook scenes marked - cannot build teaser Short');
   }
 
+  const avatarPath = getHostAvatarPath();
   const HOOK_CONCURRENCY = 4;
-  const hookClipsByOrder = {};
+  const clipPathByOrder = {};
+  const audioPathByOrder = {};
+  const durationByOrder = {};
+
   for (let i = 0; i < hookScenes.length; i += HOOK_CONCURRENCY) {
     const batch = hookScenes.slice(i, i + HOOK_CONCURRENCY);
     await Promise.all(
-      batch.map(async (scene) => {
-        const duration = Math.max(scene.end_time - scene.start_time, 0.5);
+      batch.map(async (scene, batchIdx) => {
+        const globalIdx = i + batchIdx;
+        const isLast = globalIdx === hookScenes.length - 1;
+        const extraTail = isLast ? 0 : TRANSITION_DURATION;
+
         const clipPath = path.join(workDir, `hook-${scene.scene_order}.mp4`);
+        const renderedDuration = await renderSceneClip(scene, clipPath, {
+          avatarPath,
+          workDir,
+          words,
+          extraTail,
+          captionMode: 'tiktok',
+        });
+        clipPathByOrder[scene.scene_order] = clipPath;
+        durationByOrder[scene.scene_order] = renderedDuration;
 
-        const vf =
-          `[0:v]split=2[bg][fg];` +
-          `[bg]scale=320:568,boxblur=6:1,scale=1080:1920[bgblur];` +
-          `[fg]scale=1080:-1[fgscaled];` +
-          `[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2[vout]`;
-
+        const audioClipPath = path.join(workDir, `hook-audio-${scene.scene_order}.aac`);
+        const audioDuration = Math.max(scene.end_time - scene.start_time, 0.5);
         await runFfmpeg(
           [
             '-ss', String(scene.start_time),
-            '-t', String(duration),
+            '-t', String(audioDuration),
             '-i', longVideoPath,
-            '-filter_complex', vf,
-            '-map', '[vout]',
             '-map', '0:a',
-            '-c:v', 'libx264',
             '-c:a', 'aac',
-            clipPath,
+            audioClipPath,
           ],
-          `hook clip ${scene.scene_order}`
+          `hook audio ${scene.scene_order}`
         );
-        hookClipsByOrder[scene.scene_order] = clipPath;
+        audioPathByOrder[scene.scene_order] = audioClipPath;
       })
     );
   }
-  const vertClips = hookScenes.map((s) => hookClipsByOrder[s.scene_order]);
 
-  const concatListPath = path.join(workDir, 'short-concat-list.txt');
+  const clipPaths = hookScenes.map((s) => clipPathByOrder[s.scene_order]);
+  const durations = hookScenes.map((s) => durationByOrder[s.scene_order]);
+
+  const silentPath = path.join(workDir, 'short-silent.mp4');
+  if (clipPaths.length === 1) {
+    fs.copyFileSync(clipPaths[0], silentPath);
+  } else {
+    const inputArgs = clipPaths.flatMap((p) => ['-i', p]);
+    const xfadeFilter = buildXfadeChain(clipPaths.length, TRANSITION_DURATION, durations);
+    await runFfmpeg(
+      [
+        ...inputArgs,
+        '-filter_complex', xfadeFilter,
+        '-map', '[vout]',
+        '-r', '60',
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        silentPath,
+      ],
+      'short crossfade concat',
+      300000
+    );
+  }
+
+  const audioConcatListPath = path.join(workDir, 'short-audio-list.txt');
   fs.writeFileSync(
-    concatListPath,
-    vertClips.map((p) => `file '${path.resolve(p)}'`).join('\n')
+    audioConcatListPath,
+    hookScenes.map((s) => `file '${path.resolve(audioPathByOrder[s.scene_order])}'`).join('\n')
   );
-
-  const stitchedPath = path.join(workDir, 'short-stitched.mp4');
+  const stitchedAudioPath = path.join(workDir, 'short-audio.aac');
   await runFfmpeg(
-    ['-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', stitchedPath],
-    'concat hook clips'
+    ['-f', 'concat', '-safe', '0', '-i', audioConcatListPath, '-c', 'copy', stitchedAudioPath],
+    'concat hook audio'
   );
 
   const ctaText = pickCtaText();
   await runFfmpeg(
     [
-      '-i', stitchedPath,
+      '-i', silentPath,
+      '-i', stitchedAudioPath,
       '-vf',
-      `drawtext=text='${ctaText}':fontcolor=white:fontsize=48:` +
-        `x=(w-text_w)/2:y=h-200:box=1:boxcolor=black@0.5:boxborderw=20:` +
-        `enable='gte(t,${'0'})'`,
+      `drawtext=text='${ctaText}':fontcolor=white:fontsize=44:` +
+        `x=(w-text_w)/2:y=h-160:box=1:boxcolor=black@0.5:boxborderw=20`,
+      '-map', '0:v',
+      '-map', '1:a',
       '-c:v', 'libx264',
-      '-c:a', 'copy',
+      '-c:a', 'aac',
+      '-shortest',
       outputPath,
     ],
-    'add end-card text'
+    'mux short + end-card text'
   );
 
   return outputPath;

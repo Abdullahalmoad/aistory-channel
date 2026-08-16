@@ -124,4 +124,49 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return outputPath;
 }
 
-module.exports = { buildSrtFromWords, buildSrtFromScenes, buildAssFromWords, formatSrtTime, formatAssTime };
+// TikTok-style captions: ONE word on screen at a time, centered horizontally,
+// sitting around the vertical middle of the frame (TikTok's native caption spot),
+// bold with a colorful pop-in per word - not a big multi-word block.
+const TIKTOK_COLORS = ['&H00FFFFFF&', '&H00E1FF&', '&H00D7FF&', '&H4DE7FF&', '&H6BFF6B&', '&HFF66FF&', '&H4DFFFF&'];
+
+function buildTiktokAssFromWords(words, outputPath, {
+  videoWidth = 1080,
+  videoHeight = 1920,
+  fontSize = null,
+  yRatio = 0.5,
+} = {}) {
+  const fs62 = fontSize || Math.round(videoWidth * 0.062);
+  const posX = Math.round(videoWidth / 2);
+  const posY = Math.round(videoHeight * yRatio);
+
+  const header = `[Script Info]
+ScriptType: v4.00+
+PlayResX: ${videoWidth}
+PlayResY: ${videoHeight}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial Black,${fs62},&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,5,40,40,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+  const lines = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const clean = escapeAssText(w.word.trim());
+    if (!clean) continue;
+    const color = TIKTOK_COLORS[Math.floor(Math.random() * TIKTOK_COLORS.length)];
+    const start = w.start;
+    const end = Math.max(w.end, start + 0.05);
+    const text = `{\\pos(${posX},${posY})\\an5\\c${color}\\fscx78\\fscy78\\t(0,90,\\fscx100\\fscy100)}${clean}{\\r}`;
+    lines.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,,0,0,0,,${text}`);
+  }
+
+  fs.writeFileSync(outputPath, header + lines.join('\n') + '\n', 'utf-8');
+  return outputPath;
+}
+
+module.exports = { buildSrtFromWords, buildSrtFromScenes, buildAssFromWords, buildTiktokAssFromWords, formatSrtTime, formatAssTime };
