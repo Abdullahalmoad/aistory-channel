@@ -32,14 +32,14 @@ async function runPipelineForTopic(topic) {
 
   console.log('[2/6] Generating narration audio...');
   const audioPath = path.join(workDir, 'narration.mp3');
-  await generateNarrationAudio(script.scenes, { outputPath: audioPath });
+  await generateNarrationAudio(script.scenes, { outputPath: audioPath, narrativeStyle });
 
   console.log('[3/6] Fetching/generating images...');
   const imagesDir = path.join(workDir, 'images');
   const scenesWithImages = await getAllSceneImages(script.scenes, imagesDir);
 
     console.log('  -> Generating thumbnail...');
-    const thumbnailPath = await generateThumbnail(script, workDir).catch((err) => {
+    const thumbnailPath = await generateThumbnail(script, workDir, scenesWithImages).catch((err) => {
       console.warn(`Thumbnail generation failed: ${err.message}`);
       return null;
     });
@@ -124,7 +124,7 @@ async function runMorningPipeline(topic) {
   console.time('step2_audio');
   console.log('[2/6] Generating narration audio...');
   const audioPath = path.join(workDir, 'narration.mp3');
-  await generateNarrationAudio(script.scenes, { outputPath: audioPath });
+  await generateNarrationAudio(script.scenes, { outputPath: audioPath, narrativeStyle });
 
   console.timeEnd('step2_audio');
   console.time('step3_images');
@@ -140,7 +140,7 @@ async function runMorningPipeline(topic) {
   console.timeEnd('step4_transcribe');
 
   console.log('  -> Generating thumbnail...');
-  const thumbnailPath = await generateThumbnail(script, workDir).catch((err) => {
+  const thumbnailPath = await generateThumbnail(script, workDir, scenesWithImages).catch((err) => {
     console.warn(`Thumbnail generation failed: ${err.message}`);
     return null;
   });
@@ -241,9 +241,7 @@ async function runDailyWithStagger() {
     throw err;
   }
 
-  const minDelayMs = 90 * 60 * 1000;
-  const maxDelayMs = 4 * 60 * 60 * 1000;
-  const delayMs = minDelayMs + Math.floor(Math.random() * (maxDelayMs - minDelayMs));
+  const delayMs = 10 * 60 * 1000;
   console.log(`\nWaiting ${Math.round(delayMs / 60000)} minutes before uploading the Short...`);
   await new Promise((r) => setTimeout(r, delayMs));
 

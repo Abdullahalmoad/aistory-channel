@@ -7,6 +7,24 @@ const path = require('path');
 const DEFAULT_VOICE = process.env.TTS_VOICE || 'en-US-EricNeural';
 const SCENES_PER_BATCH = 8;
 
+// Rotates narrator voice based on the chosen narrative style, for variety
+// across videos instead of one fixed voice every time.
+const VOICE_POOL = [
+  'en-US-EricNeural',
+  'en-US-GuyNeural',
+  'en-US-TonyNeural',
+  'en-US-ChristopherNeural',
+];
+
+function pickVoiceForStyle(narrativeStyle) {
+  if (!narrativeStyle) return DEFAULT_VOICE;
+  let hash = 0;
+  for (let i = 0; i < narrativeStyle.length; i++) {
+    hash = (hash * 31 + narrativeStyle.charCodeAt(i)) >>> 0;
+  }
+  return VOICE_POOL[hash % VOICE_POOL.length];
+}
+
 function buildBatchText(scenes) {
   return scenes.map((scene) => scene.text).join(' ... ');
 }
@@ -30,12 +48,15 @@ function runFfmpeg(args) {
 async function generateNarrationAudio(scenes, options = {}) {
   const {
     outputPath = path.join('/tmp', `narration-${Date.now()}.mp3`),
-    voice = DEFAULT_VOICE,
+    narrativeStyle = null,
+    voice = options.voice || pickVoiceForStyle(narrativeStyle),
   } = options;
 
   if (!Array.isArray(scenes) || scenes.length === 0) {
     throw new Error('No scenes provided for narration');
   }
+
+  console.log(`  -> Using narrator voice: ${voice}`);
 
   const batchDir = path.join('/tmp', `tts-batches-${Date.now()}`);
   fs.mkdirSync(batchDir, { recursive: true });

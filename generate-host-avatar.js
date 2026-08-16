@@ -11,47 +11,45 @@
 // (green fringing around the character), tweak COLORKEY_SIMILARITY below
 // and re-run just the ffmpeg step (see the comment near the bottom).
 
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+
+const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
+const IMAGE_MODEL = process.env.POLLINATIONS_IMAGE_MODEL || 'flux';
 
 const OUTPUT_DIR = path.join(__dirname, 'assets', 'host');
 const RAW_PATH = path.join(OUTPUT_DIR, 'avatar-raw.png');
 const FINAL_PATH = path.join(OUTPUT_DIR, 'avatar.png');
 
-// Edit this description to design your channel's mascot/host character.
-// Keep "solid pure green background" in the prompt - required for the
-// background removal step below to work cleanly.
+// نفس وصف الشخصية المستخدم بمشاهد الفيديو (STYLE_LOCK بملف image.service.js) -
+// خلها متطابقة عشان الأفتار بالزاوية يطابق شخصية الفيديو نفسها. لازم تبقى
+// عبارة "solid pure green background" موجودة - الخطوة اللي تحت تعتمد عليها
+// لإزالة الخلفية.
 const AVATAR_PROMPT =
-  'a friendly cartoon narrator character, young man wearing a beanie hat and glasses, ' +
-  'flat vector illustration, minimalist flat design, simple 2D vector art, thin clean outlines, ' +
-  'chest-up portrait, facing forward, solid pure green background, no text, no watermark';
+  'Hand-drawn sketch illustration style, minimalist stick-figure detective/narrator ' +
+  'character with a round head, wearing a trench coat and fedora hat, simple dot eyes, ' +
+  'holding a magnifying glass. Muted noir tones, visible paper texture, loose hand-inked ' +
+  'linework, flat cartoon coloring. Chest-up portrait, facing forward, solid pure green ' +
+  'background, no text, no watermark';
 
-// A fixed seed makes this reproducible if you ever need to regenerate
-// (e.g. after tweaking the prompt) and get a similar-looking result.
+// seed غير مستخدم مع موديلات kontext/nanobanana (يدعمه بس flux/zimage) - يبقى هنا
+// كتوثيق فقط لو رجعت تستخدم موديل يدعمه.
 const SEED = 42;
 
 const COLORKEY_COLOR = '0x00FF00'; // must match "pure green" in the prompt
 const COLORKEY_SIMILARITY = '0.20'; // increase if green fringing remains, decrease if character is see-through
 const COLORKEY_BLEND = '0.05';
 
-function downloadToFile(url, destPath) {
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return downloadToFile(res.headers.location, destPath).then(resolve, reject);
-        }
-        if (res.statusCode !== 200) {
-          return reject(new Error(`Download failed: HTTP ${res.statusCode}`));
-        }
-        const fileStream = fs.createWriteStream(destPath);
-        res.pipe(fileStream);
-        fileStream.on('finish', () => fileStream.close(() => resolve(destPath)));
-      })
-      .on('error', reject);
-  });
+async function downloadToFile(url, destPath) {
+  const headers = POLLINATIONS_KEY ? { Authorization: `Bearer ${POLLINATIONS_KEY}` } : {};
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Download failed: HTTP ${res.status} ${body.slice(0, 300)}`);
+  }
+  fs.writeFileSync(destPath, Buffer.from(await res.arrayBuffer()));
+  return destPath;
 }
 
 function runFfmpeg(args) {
@@ -68,7 +66,7 @@ async function main() {
 
   console.log('Generating host avatar via Pollinations.ai...');
   const encodedPrompt = encodeURIComponent(AVATAR_PROMPT);
-  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=800&seed=${SEED}&nologo=true&model=flux`;
+  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=800&nologo=true&seed=${SEED}&model=${IMAGE_MODEL}`;
   await downloadToFile(url, RAW_PATH);
   console.log(`Raw avatar saved: ${RAW_PATH}`);
 

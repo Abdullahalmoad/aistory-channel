@@ -48,6 +48,8 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: llama-3.3-70b-versatile
           TTS_VOICE: en-US-EricNeural
+          POLLINATIONS_KEY: ${{ secrets.POLLINATIONS_KEY }}
+          POLLINATIONS_IMAGE_MODEL: flux
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
@@ -64,4 +66,8 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add topics.json
           git diff --staged --quiet || git commit -m "Mark topic as used [skip ci]"
-          git push || echo "Nothing to push or push failed - check manually"
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 5
+          done
