@@ -93,7 +93,7 @@ Rules for a high-retention Short:
 3. Each segment's start/end range should be 2 to 10 seconds long. Never use more than 10 seconds for a single segment., taken from moments in the transcript above that best match what the sentence describes.
 4. Total of all (end-start) across segments must stay under ${maxDurationSeconds} seconds.
 5. End with a punchy closing line (a twist, a question, or a call to keep watching for more).
-6. Vary pacing: mix a few longer explanatory segments with several fast quick-cut segments - avoid a flat monotone rhythm.
+6. Vary pacing: mix short and longer clips, but NEVER exceed 10 seconds for any single clip. Prefer 10 to 17 distinct clips from different moments of the source video.
 
 Also write a short catchy English YouTube title and a 1-2 sentence English description.
 
@@ -123,9 +123,22 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
   let total = 0;
   const clamped = [];
   for (const s of parsed.segments) {
-    const dur = Math.max(0.5, s.end - s.start);
+    const start = Math.max(0, Number(s.start));
+    const originalEnd = Number(s.end);
+    if (!Number.isFinite(start) || !Number.isFinite(originalEnd) || originalEnd <= start) continue;
+
+    // HARD CAP: every source clip is maximum 10 seconds.
+    const end = Math.min(originalEnd, start + 10);
+    const dur = Math.max(0.5, end - start);
+
     if (total + dur > maxDurationSeconds) break;
-    clamped.push(s);
+
+    clamped.push({
+      ...s,
+      start,
+      end
+    });
+
     total += dur;
   }
   parsed.segments = clamped;
