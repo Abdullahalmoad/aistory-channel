@@ -83,14 +83,14 @@ Source video title: "${title}"
 Timestamped transcript of the source video:
 ${transcriptBlock}
 
-Your task: build a list of 5 to 9 narration "segments". Each segment has:
+Your task: build a list of 10 to 17 narration "segments". Each segment has:
 - "text": one short punchy English sentence (max ~15 words) that will be spoken aloud
 - "start" and "end": the timestamp range (in seconds, numbers) from the ORIGINAL video transcript above that visually matches this sentence - this is what will play on screen WHILE this sentence is narrated
 
 Rules for a high-retention Short:
 1. Segment 1's text MUST be a strong hook in the first sentence (a question, a shocking claim, or "Most people don't know...") - this determines if viewers keep watching past 3 seconds.
 2. Keep sentences short, punchy, spoken English - no markdown, no stage directions.
-3. Each segment's start/end range should be 2 to 6 seconds long, taken from moments in the transcript above that best match what the sentence describes.
+3. Each segment's start/end range should be 2 to 10 seconds long. Never use more than 10 seconds for a single segment., taken from moments in the transcript above that best match what the sentence describes.
 4. Total of all (end-start) across segments must stay under ${maxDurationSeconds} seconds.
 5. End with a punchy closing line (a twist, a question, or a call to keep watching for more).
 6. Vary pacing: mix a few longer explanatory segments with several fast quick-cut segments - avoid a flat monotone rhythm.
