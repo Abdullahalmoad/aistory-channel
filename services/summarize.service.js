@@ -42,8 +42,6 @@ function getWordTimestampsAuto(audioPath) {
   });
 }
 
-// Groups raw whisper words into ~5s segments with combined text, so the LLM
-// gets a readable transcript with timestamps instead of a huge word list.
 function buildTimestampedTranscript(words, segmentSeconds = 5) {
   const segments = [];
   let current = [];
@@ -70,25 +68,28 @@ function fmtTime(s) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-// Asks Groq to: 1) understand the transcript (any language) 2) write an
-// English summary narration script 3) pick the best original-video clips
-// (by timestamp) to visually cover that narration, totalling close to
-// maxDurationSeconds.
 async function summarizeAndPickClips(segments, { title, maxDurationSeconds = 175 } = {}) {
   const transcriptBlock = segments
     .map((s) => `[${fmtTime(s.start)}-${fmtTime(s.end)}] ${s.text}`)
     .join('\n');
 
+  const totalSourceSeconds = segments.length ? segments[segments.length - 1].end : null;
+  const totalSourceLabel = totalSourceSeconds != null ? fmtTime(totalSourceSeconds) : 'unknown';
+
   const prompt = `You are producing an English-language YouTube Shorts summary of a source video (the source may be in Arabic or English - it doesn't matter, your output narration script must always be in English).
 
 Source video title: "${title}"
+Total source video length: ${totalSourceLabel} (timestamps below cover the FULL video from start to end)
 
 Timestamped transcript of the source video:
 ${transcriptBlock}
 
 Your task:
 1. Write a punchy English narration script that summarizes the video's most interesting content, written for a ~${maxDurationSeconds}-second YouTube Short. Hook in the first sentence. Clear, energetic, simple spoken English (no markdown, no stage directions).
-2. Select which original-video timestamp ranges best visually match/support this narration, in the order they should appear. Total selected duration should be close to but not exceed ${maxDurationSeconds} seconds. Prefer the most visually interesting or information-dense moments. Use 4 to 10 clips.
+2. Select which original-video timestamp ranges best visually match/support this narration, in the order they should appear. Total selected duration should be close to but not exceed ${maxDurationSeconds} seconds.
+   - Use AT LEAST 10 clips, ideally 12-18 clips, each roughly 2-6 seconds long, so the Short feels like a fast-paced visual summary, not a few long repeated shots.
+   - Spread the selected clips across the ENTIRE source video timeline (beginning, middle, AND end) in rough proportion to its full length (${totalSourceLabel}) - do NOT cluster all clips in the first minute. The Short should visually represent the whole video, not just its intro.
+   - Prefer the most visually interesting or information-dense moments, but make sure different sections/topics of the video are all represented.
 3. Write a short English YouTube title and description for this Short.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
@@ -113,7 +114,6 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
     throw new Error('summarizeAndPickClips: Groq did not return valid narration/clips');
   }
 
-  // Clamp total clip duration to maxDurationSeconds just in case the model overshoots.
   let total = 0;
   const clampedClips = [];
   for (const c of parsed.clips) {
