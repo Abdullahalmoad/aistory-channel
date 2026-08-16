@@ -33,8 +33,7 @@ function getWordTimestampsAuto(audioPath) {
     proc.on('close', (code) => {
       if (code !== 0) return reject(new Error(`transcribe_worker_auto.py exited with code ${code}: ${stderr}`));
       try {
-        const json = JSON.parse(fs.readFileSync(outputJsonPath, 'utf-8'));
-        resolve(json);
+        resolve(JSON.parse(fs.readFileSync(outputJsonPath, 'utf-8')));
       } catch (err) {
         reject(err);
       }
@@ -46,7 +45,6 @@ function buildTimestampedTranscript(words, segmentSeconds = 5) {
   const segments = [];
   let current = [];
   let segStart = null;
-
   for (const w of words) {
     if (segStart == null) segStart = w.start;
     current.push(w);
@@ -68,34 +66,40 @@ function fmtTime(s) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-async function summarizeAndPickClips(segments, { title, maxDurationSeconds = 175 } = {}) {
-  const transcriptBlock = segments
+// Returns { segments: [{text, start, end}], title, description }
+// Each segment's `text` is the English narration line that plays exactly
+// while the video shows `start`-`end` from the ORIGINAL source video.
+// This is the key to frame-accurate sync: the LLM picks matching pairs
+// instead of one big narration + a separate clip list.
+async function summarizeAndPickClips(transcriptSegments, { title, maxDurationSeconds = 175 } = {}) {
+  const transcriptBlock = transcriptSegments
     .map((s) => `[${fmtTime(s.start)}-${fmtTime(s.end)}] ${s.text}`)
     .join('\n');
 
-  const totalSourceSeconds = segments.length ? segments[segments.length - 1].end : null;
-  const totalSourceLabel = totalSourceSeconds != null ? fmtTime(totalSourceSeconds) : 'unknown';
-
-  const prompt = `You are producing an English-language YouTube Shorts summary of a source video (the source may be in Arabic or English - it doesn't matter, your output narration script must always be in English).
+  const prompt = `You are producing a viral English-language YouTube Short that summarizes a source video (source may be Arabic or English - your narration must ALWAYS be English).
 
 Source video title: "${title}"
-Total source video length: ${totalSourceLabel} (timestamps below cover the FULL video from start to end)
 
 Timestamped transcript of the source video:
 ${transcriptBlock}
 
-Your task:
-1. Write a punchy English narration script that summarizes the video's most interesting content, written for a ~${maxDurationSeconds}-second YouTube Short. Hook in the first sentence. Clear, energetic, simple spoken English (no markdown, no stage directions).
-2. Select which original-video timestamp ranges best visually match/support this narration, in the order they should appear. Total selected duration should be close to but not exceed ${maxDurationSeconds} seconds.
-   - Use AT LEAST 10 clips, ideally 12-18 clips, each roughly 2-6 seconds long, so the Short feels like a fast-paced visual summary, not a few long repeated shots.
-   - Spread the selected clips across the ENTIRE source video timeline (beginning, middle, AND end) in rough proportion to its full length (${totalSourceLabel}) - do NOT cluster all clips in the first minute. The Short should visually represent the whole video, not just its intro.
-   - Prefer the most visually interesting or information-dense moments, but make sure different sections/topics of the video are all represented.
-3. Write a short English YouTube title and description for this Short.
+Your task: build a list of 5 to 9 narration "segments". Each segment has:
+- "text": one short punchy English sentence (max ~15 words) that will be spoken aloud
+- "start" and "end": the timestamp range (in seconds, numbers) from the ORIGINAL video transcript above that visually matches this sentence - this is what will play on screen WHILE this sentence is narrated
+
+Rules for a high-retention Short:
+1. Segment 1's text MUST be a strong hook in the first sentence (a question, a shocking claim, or "Most people don't know...") - this determines if viewers keep watching past 3 seconds.
+2. Keep sentences short, punchy, spoken English - no markdown, no stage directions.
+3. Each segment's start/end range should be 2 to 6 seconds long, taken from moments in the transcript above that best match what the sentence describes.
+4. Total of all (end-start) across segments must stay under ${maxDurationSeconds} seconds.
+5. End with a punchy closing line (a twist, a question, or a call to keep watching for more).
+6. Vary pacing: mix a few longer explanatory segments with several fast quick-cut segments - avoid a flat monotone rhythm.
+
+Also write a short catchy English YouTube title and a 1-2 sentence English description.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
 {
-  "narration": "full english narration script as one string",
-  "clips": [{"start": 12.5, "end": 18.0}, ...],
+  "segments": [{"text": "...", "start": 12.5, "end": 16.0}, ...],
   "title": "short catchy english title",
   "description": "1-2 sentence english description"
 }`;
@@ -103,52 +107,28 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
   const completion = await groq.chat.completions.create({
     model: MODEL,
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.7,
+    temperature: 0.8,
   });
 
   const raw = completion.choices[0]?.message?.content || '';
   const cleaned = raw.replace(/```json\n?|```\n?/g, '').trim();
   const parsed = JSON.parse(cleaned);
 
-  if (!parsed.narration || !Array.isArray(parsed.clips) || parsed.clips.length === 0) {
-    throw new Error('summarizeAndPickClips: Groq did not return valid narration/clips');
+  if (!parsed.segments || !Array.isArray(parsed.segments) || parsed.segments.length === 0) {
+    throw new Error('summarizeAndPickClips: Groq did not return valid segments');
   }
 
-  // The model doesn't always follow the "use many short clips" instruction.
-  // Enforce it in code: split any clip longer than MAX_SEG_SECONDS into
-  // several shorter back-to-back sub-clips, so the final Short always has
-  // plenty of quick cuts (fast-paced summary feel) no matter what the model
-  // returned, while still covering the exact same source timestamp ranges
-  // (and therefore the same spread across the video) the model picked.
-  const MAX_SEG_SECONDS = 5;
-  const splitClips = [];
-  for (const c of parsed.clips) {
-    const dur = c.end - c.start;
-    if (dur <= MAX_SEG_SECONDS) {
-      splitClips.push(c);
-      continue;
-    }
-    const pieces = Math.ceil(dur / MAX_SEG_SECONDS);
-    const pieceLen = dur / pieces;
-    for (let i = 0; i < pieces; i++) {
-      splitClips.push({ start: c.start + i * pieceLen, end: c.start + (i + 1) * pieceLen });
-    }
-  }
-  parsed.clips = splitClips;
-
+  // Clamp total source-clip duration to maxDurationSeconds (narration length
+  // is handled later per-segment once TTS is generated).
   let total = 0;
-  const clampedClips = [];
-  for (const c of parsed.clips) {
-    const dur = Math.max(0, c.end - c.start);
-    if (total + dur > maxDurationSeconds) {
-      const remaining = maxDurationSeconds - total;
-      if (remaining > 1) clampedClips.push({ start: c.start, end: c.start + remaining });
-      break;
-    }
-    clampedClips.push(c);
+  const clamped = [];
+  for (const s of parsed.segments) {
+    const dur = Math.max(0.5, s.end - s.start);
+    if (total + dur > maxDurationSeconds) break;
+    clamped.push(s);
     total += dur;
   }
-  parsed.clips = clampedClips;
+  parsed.segments = clamped;
 
   return parsed;
 }
@@ -162,10 +142,10 @@ async function transcribeAndSummarize(videoPath, workDir, { title, maxDurationSe
   if (!words || words.length === 0) throw new Error('No speech detected in source video');
   console.log(`  -> Detected language: ${language}, ${words.length} words`);
 
-  const segments = buildTimestampedTranscript(words);
+  const transcriptSegments = buildTimestampedTranscript(words);
 
-  console.log('  -> Summarizing + selecting clips (English)...');
-  const result = await summarizeAndPickClips(segments, { title, maxDurationSeconds });
+  console.log('  -> Summarizing into synced English segments...');
+  const result = await summarizeAndPickClips(transcriptSegments, { title, maxDurationSeconds });
 
   return { ...result, sourceLanguage: language };
 }

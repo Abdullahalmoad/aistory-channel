@@ -2,13 +2,13 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { EdgeTTS } = require('edge-tts-universal');
-const { buildAssFromWords } = require('./srt.util');
+const { buildSrtFromWords } = require('./srt.util');
 
 const NARRATOR_VOICE = process.env.SUMMARY_TTS_VOICE || 'en-US-EricNeural';
 const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 const WORKER_SCRIPT = path.join(__dirname, 'transcribe_worker_auto.py');
 
-function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 10 * 60 * 1000) {
+function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 6 * 60 * 1000) {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', ['-y', ...args]);
     let stderr = '';
@@ -29,15 +29,24 @@ function runFfmpeg(args, label = 'ffmpeg', timeoutMs = 10 * 60 * 1000) {
   });
 }
 
-async function generateEnglishNarration(narrationText, outputPath) {
-  const tts = new EdgeTTS(narrationText, NARRATOR_VOICE, { rate: '+0%', volume: '+0%', pitch: '+0Hz' });
+function getDurationSeconds(filePath) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath]);
+    let out = '';
+    proc.stdout.on('data', (d) => (out += d.toString()));
+    proc.on('close', (code) => (code === 0 ? resolve(parseFloat(out.trim())) : reject(new Error('ffprobe failed'))));
+  });
+}
+
+async function generateSegmentNarration(text, outputPath) {
+  const tts = new EdgeTTS(text, NARRATOR_VOICE, { rate: '+2%', volume: '+0%', pitch: '+0Hz' });
   const result = await tts.synthesize();
   const buffer = Buffer.from(await result.audio.arrayBuffer());
   fs.writeFileSync(outputPath, buffer);
   return outputPath;
 }
 
-function getNarrationWordTimestamps(audioPath) {
+function getWordTimestamps(audioPath) {
   return new Promise((resolve, reject) => {
     const outputJsonPath = audioPath.replace(/\.mp3$/, '') + '.words.json';
     const proc = spawn(PYTHON_BIN, [WORKER_SCRIPT, audioPath, outputJsonPath]);
@@ -54,98 +63,97 @@ function getNarrationWordTimestamps(audioPath) {
   });
 }
 
-async function buildClippedVideo(sourceVideoPath, clips, workDir) {
+// Builds ONE final vertical Short where every narration sentence is
+// frame-accurately synced to its matching original-video moment:
+// for each segment -> generate its narration audio -> measure its exact
+// duration -> stretch/compress that segment's source video clip (speed
+// change, not freeze-frames or jarring loops) to match that exact duration
+// -> mux video+narration+captions for that segment -> concat all segments.
+async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath }) {
   fs.mkdirSync(workDir, { recursive: true });
-  const segmentPaths = [];
+  const segmentOutputs = [];
 
-  const fitFilter =
-    'split=2[bg][fg];' +
-    '[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:5[bgblur];' +
-    '[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fgscaled];' +
-    '[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2[vout]';
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const idx = String(i).padStart(3, '0');
+    console.log(`    segment ${idx}: "${seg.text.slice(0, 50)}..."`);
 
-  for (let i = 0; i < clips.length; i++) {
-    const { start, end } = clips[i];
-    const duration = Math.max(0.3, end - start);
-    const segPath = path.join(workDir, `seg_${String(i).padStart(3, '0')}.mp4`);
+    // 1) Narration audio for this sentence only
+    const narrationPath = path.join(workDir, `narration_${idx}.mp3`);
+    await generateSegmentNarration(seg.text, narrationPath);
+    const narrationDur = await getDurationSeconds(narrationPath);
+
+    // 2) Word timestamps for this segment's captions
+    const words = await getWordTimestamps(narrationPath);
+
+    // 3) Cut the matching source clip, scale to vertical
+    const rawClipPath = path.join(workDir, `raw_${idx}.mp4`);
+    const clipDur = Math.max(0.3, seg.end - seg.start);
     await runFfmpeg(
       [
-        '-ss', String(start),
+        '-ss', String(seg.start),
         '-i', sourceVideoPath,
-        '-t', String(duration),
+        '-t', String(clipDur),
         '-an',
-        '-filter_complex', fitFilter,
-        '-map', '[vout]',
+        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
         '-r', '30',
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
-        segPath,
+        rawClipPath,
       ],
-      `cut segment ${i}`
+      `cut raw clip ${idx}`
     );
-    segmentPaths.push(segPath);
+
+    // 4) Stretch/compress video speed so it matches narration length exactly
+    //    (smoother than freeze-frames or abrupt loops).
+    const speedFactor = clipDur / narrationDur; // ffmpeg setpts multiplier
+    const clampedFactor = Math.min(4, Math.max(0.25, speedFactor));
+    const matchedClipPath = path.join(workDir, `matched_${idx}.mp4`);
+    await runFfmpeg(
+      [
+        '-i', rawClipPath,
+        '-vf', `setpts=${clampedFactor}*PTS`,
+        '-an',
+        '-r', '30',
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+        matchedClipPath,
+      ],
+      `time-stretch clip ${idx}`
+    );
+
+    // 5) Burn per-segment captions (word-level, punchy style)
+    const srtPath = path.join(workDir, `captions_${idx}.srt`);
+    buildSrtFromWords(words, srtPath, 3);
+    const captionStyle = "FontName=Arial,Bold=1,FontSize=30,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=4,Shadow=1,Alignment=2,MarginV=110";
+
+    // 6) Mux this segment's matched video + its narration + captions
+    const segOutPath = path.join(workDir, `final_seg_${idx}.mp4`);
+    await runFfmpeg(
+      [
+        '-i', matchedClipPath,
+        '-i', narrationPath,
+        '-map', '0:v:0',
+        '-map', '1:a:0',
+        '-vf', `subtitles=${srtPath}:force_style='${captionStyle}'`,
+        '-shortest',
+        '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
+        '-c:a', 'aac', '-b:a', '160k',
+        segOutPath,
+      ],
+      `mux segment ${idx}`
+    );
+
+    segmentOutputs.push(segOutPath);
   }
 
+  // 7) Concat all synced segments into the final Short
   const concatListPath = path.join(workDir, 'concat-list.txt');
-  fs.writeFileSync(concatListPath, segmentPaths.map((p) => `file '${path.resolve(p)}'`).join('\n'));
-
-  const concatenatedPath = path.join(workDir, 'clipped-silent.mp4');
+  fs.writeFileSync(concatListPath, segmentOutputs.map((p) => `file '${path.resolve(p)}'`).join('\n'));
   await runFfmpeg(
-    ['-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', concatenatedPath],
-    'concat segments'
-  );
-
-  return concatenatedPath;
-}
-
-function getDurationSeconds(filePath) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath]);
-    let out = '';
-    proc.stdout.on('data', (d) => (out += d.toString()));
-    proc.on('close', (code) => (code === 0 ? resolve(parseFloat(out.trim())) : reject(new Error('ffprobe failed'))));
-  });
-}
-
-async function assembleFinalShort({ clippedVideoPath, narrationAudioPath, words, workDir, outputPath }) {
-  const assPath = path.join(workDir, 'captions.ass');
-  buildAssFromWords(words, assPath, {
-    groupSize: 3,
-    videoWidth: 1080,
-    videoHeight: 1920,
-    fontSize: 58,
-    marginV: 220,
-  });
-  const assFilterPath = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
-
-  const [videoDur, narrationDur] = await Promise.all([
-    getDurationSeconds(clippedVideoPath),
-    getDurationSeconds(narrationAudioPath),
-  ]);
-
-  let videoInput = clippedVideoPath;
-  if (videoDur > 0 && narrationDur > videoDur) {
-    const loopsNeeded = Math.ceil(narrationDur / videoDur);
-    const loopedPath = path.join(workDir, 'clipped-looped.mp4');
-    await runFfmpeg(['-stream_loop', String(loopsNeeded - 1), '-i', clippedVideoPath, '-c', 'copy', loopedPath], 'loop clipped video');
-    videoInput = loopedPath;
-  }
-
-  await runFfmpeg(
-    [
-      '-i', videoInput,
-      '-i', narrationAudioPath,
-      '-map', '0:v:0',
-      '-map', '1:a:0',
-      '-vf', `ass=${assFilterPath}`,
-      '-shortest',
-      '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
-      '-c:a', 'aac', '-b:a', '160k',
-      outputPath,
-    ],
-    'assemble final short'
+    ['-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', outputPath],
+    'concat final segments'
   );
 
   return outputPath;
 }
 
-module.exports = { generateEnglishNarration, getNarrationWordTimestamps, buildClippedVideo, assembleFinalShort };
+module.exports = { buildSyncedShort, getDurationSeconds };

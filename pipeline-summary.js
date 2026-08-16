@@ -1,10 +1,8 @@
 require('dotenv').config();
 // pipeline-summary.js
-// SEPARATE pipeline from pipeline.js - does NOT touch story generation or
-// the long-form video. Finds a real source video automatically, downloads
-// it, transcribes + summarizes it into English, cuts the best moments from
-// the ORIGINAL footage, overlays new English narration, and uploads ONLY a
-// Short (max ~175s to stay safely under YouTube's 180s Shorts cap).
+// Frame-accurate synced version: each narration sentence is matched and
+// time-stretched to its own original-video moment, instead of one long
+// narration track laid over loosely-concatenated clips.
 
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +10,7 @@ const path = require('path');
 const { findNextSourceVideo, markUsed } = require('./services/discover.service');
 const { downloadSourceVideo } = require('./services/download.service');
 const { transcribeAndSummarize } = require('./services/summarize.service');
-const { generateEnglishNarration, getNarrationWordTimestamps, buildClippedVideo, assembleFinalShort } = require('./services/clip.service');
+const { buildSyncedShort } = require('./services/clip.service');
 const { uploadVideo } = require('./services/youtube.service');
 const { notifySuccess, notifyFailure } = require('./services/telegram.service');
 
@@ -23,7 +21,7 @@ async function runSummaryShortPipeline() {
   const workDir = path.join('/tmp', jobId);
   fs.mkdirSync(workDir, { recursive: true });
 
-  console.log(`\n=== Summary Short pipeline (${jobId}) ===`);
+  console.log(`\n=== Summary Short pipeline (synced) (${jobId}) ===`);
 
   console.log('[1/5] Finding a source video...');
   const source = await findNextSourceVideo();
@@ -32,27 +30,20 @@ async function runSummaryShortPipeline() {
   console.log('[2/5] Downloading source video...');
   const sourceVideoPath = await downloadSourceVideo(source.url, workDir);
 
-  console.log('[3/5] Transcribing + summarizing into English...');
-  const { narration, clips, title, description, sourceLanguage } = await transcribeAndSummarize(
+  console.log('[3/5] Transcribing + building synced English segments...');
+  const { segments, title, description, sourceLanguage } = await transcribeAndSummarize(
     sourceVideoPath,
     workDir,
     { title: source.title, maxDurationSeconds: MAX_SHORT_SECONDS }
   );
-  console.log(`  -> Source language: ${sourceLanguage} | ${clips.length} clips selected`);
+  console.log(`  -> Source language: ${sourceLanguage} | ${segments.length} synced segments`);
 
-  console.log('[4/5] Building the Short (cutting clips + new English narration)...');
-  const narrationAudioPath = path.join(workDir, 'narration.mp3');
-  await generateEnglishNarration(narration, narrationAudioPath);
-  const narrationWords = await getNarrationWordTimestamps(narrationAudioPath);
-
-  const clippedVideoPath = await buildClippedVideo(sourceVideoPath, clips, path.join(workDir, 'clips'));
-
+  console.log('[4/5] Building the Short (per-segment sync: narration + matched clip speed)...');
   const finalShortPath = path.join(workDir, 'final-short.mp4');
-  await assembleFinalShort({
-    clippedVideoPath,
-    narrationAudioPath,
-    words: narrationWords,
-    workDir,
+  await buildSyncedShort({
+    sourceVideoPath,
+    segments,
+    workDir: path.join(workDir, 'segments'),
     outputPath: finalShortPath,
   });
 
