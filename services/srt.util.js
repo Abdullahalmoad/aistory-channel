@@ -125,17 +125,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 }
 
 // TikTok-style captions: ONE word on screen at a time, centered horizontally,
-// sitting around the vertical middle of the frame (TikTok's native caption spot),
-// bold with a colorful pop-in per word - not a big multi-word block.
-const TIKTOK_COLORS = ['&H00FFFFFF&', '&H00E1FF&', '&H00D7FF&', '&H4DE7FF&', '&H6BFF6B&', '&HFF66FF&', '&H4DFFFF&'];
+// sitting in the lower-middle of the frame (out of the way of faces/subjects),
+// small and bold with a colorful pop-in per word - never overlapping in time.
+const TIKTOK_COLORS = ['&H00E1FF&', '&H00D7FF&', '&H4DE7FF&', '&H6BFF6B&', '&HFF66FF&', '&H4DFFFF&'];
 
 function buildTiktokAssFromWords(words, outputPath, {
   videoWidth = 1080,
   videoHeight = 1920,
   fontSize = null,
-  yRatio = 0.5,
+  yRatio = 0.68,
 } = {}) {
-  const fs62 = fontSize || Math.round(videoWidth * 0.062);
+  const fs62 = fontSize || Math.round(videoWidth * 0.042);
   const posX = Math.round(videoWidth / 2);
   const posY = Math.round(videoHeight * yRatio);
 
@@ -147,7 +147,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial Black,${fs62},&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,5,40,40,0,1
+Style: Default,Arial Black,${fs62},&H00FFFFFF,&H00FFFFFF,&H00101010,&H00000000,-1,0,0,0,100,100,0,0,1,2.5,1,5,40,40,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -160,9 +160,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     if (!clean) continue;
     const color = TIKTOK_COLORS[Math.floor(Math.random() * TIKTOK_COLORS.length)];
     const start = w.start;
-    const end = Math.max(w.end, start + 0.05);
-    const text = `{\\pos(${posX},${posY})\\an5\\c${color}\\fscx78\\fscy78\\t(0,90,\\fscx100\\fscy100)}${clean}{\\r}`;
-    lines.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,,0,0,0,,${text}`);
+    // Cap the end time at the next word's start so two words never render
+    // on screen at the same time (this was causing overlapping/stacked text).
+    const nextStart = words[i + 1] ? words[i + 1].start : null;
+    const naturalEnd = Math.max(w.end, start + 0.05);
+    const end = nextStart != null ? Math.min(naturalEnd, nextStart) : naturalEnd;
+    const text = `{\\pos(${posX},${posY})\\an5\\c${color}\\fscx80\\fscy80\\t(0,80,\\fscx100\\fscy100)}${clean}{\\r}`;
+    lines.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(Math.max(end, start + 0.05))},Default,,0,0,0,,${text}`);
   }
 
   fs.writeFileSync(outputPath, header + lines.join('\n') + '\n', 'utf-8');

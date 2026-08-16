@@ -58,10 +58,10 @@ const COLOR_GRADE =
 // Several Ken Burns pan directions instead of always "zoom into center" - CapCut-style variety.
 const PAN_DIRECTIONS = [
   { x: 0, y: 0 },      // straight zoom-in, no pan
-  { x: -60, y: 0 },    // pan left
-  { x: 60, y: 0 },     // pan right
-  { x: 0, y: -40 },    // pan up
-  { x: 0, y: 40 },     // pan down
+  { x: -18, y: 0 },    // pan left
+  { x: 18, y: 0 },     // pan right
+  { x: 0, y: -14 },    // pan up
+  { x: 0, y: 14 },     // pan down
 ];
 
 function pickPanDirection() {
@@ -95,9 +95,12 @@ async function renderSceneClip(scene, outputPath, { width = 1080, height = 1920,
       `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
       `${COLOR_GRADE},format=yuv420p`;
   } else {
+    // Small buffer (3%) above the output frame just enough room for the pan,
+    // not the old 12%+zoom combo that was cropping ~15-20% of the image
+    // away and made every scene feel zoomed in / cut off.
     baseFilter =
-      `scale=${Math.round(width * 1.12)}:${Math.round(height * 1.12)}:force_original_aspect_ratio=increase,crop=${Math.round(width * 1.12)}:${Math.round(height * 1.12)},` +
-      `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.03-0.03*on/${Math.round(revealSec * fps)},min(zoom+0.0004,1.06))':` +
+      `scale=${Math.round(width * 1.03)}:${Math.round(height * 1.03)}:force_original_aspect_ratio=increase,crop=${Math.round(width * 1.03)}:${Math.round(height * 1.03)},` +
+      `zoompan=z='if(lte(on,${Math.round(revealSec * fps)}),1.0-0.0*on/${Math.round(revealSec * fps)},min(zoom+0.00015,1.02))':` +
       `x='iw/2-(iw/zoom/2)+${pan.x}*(on/${totalFrames})':y='ih/2-(ih/zoom/2)+${pan.y}*(on/${totalFrames})':` +
       `d=${totalFrames}:s=${width}x${height}:fps=${fps},` +
       `fade=t=in:st=0:d=${revealSec}:alpha=0,` +
