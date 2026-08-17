@@ -172,7 +172,12 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
   const concatListPath = path.join(workDir, 'concat-list.txt');
   fs.writeFileSync(concatListPath, segmentOutputs.map((p) => `file '${path.resolve(p)}'`).join('\n'));
   await runFfmpeg(
-    ['-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', outputPath],
+    [
+      '-f', 'concat', '-safe', '0', '-i', concatListPath,
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+      '-c:a', 'aac', '-b:a', '160k',
+      outputPath,
+    ],
     'concat final segments'
   );
 
