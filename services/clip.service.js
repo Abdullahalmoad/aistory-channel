@@ -89,13 +89,21 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
     // 3) Cut the matching source clip, scale to vertical
     const rawClipPath = path.join(workDir, `raw_${idx}.mp4`);
     const clipDur = Math.max(0.3, seg.end - seg.start);
+    // Keep the source video's full frame centered (no cropping of the
+    // sides/top), with a blurred, filled copy of itself behind it as a
+    // letterbox background instead of hard black bars.
+    const letterboxFilter =
+      '[0:v]split=2[bg][fg];' +
+      '[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=25[bgblur];' +
+      '[fg]scale=1080:-2:force_original_aspect_ratio=decrease[fgscaled];' +
+      '[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2';
     await runFfmpeg(
       [
         '-ss', String(seg.start),
         '-i', sourceVideoPath,
         '-t', String(clipDur),
         '-an',
-        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+        '-filter_complex', letterboxFilter,
         '-r', '30',
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
         rawClipPath,
@@ -123,7 +131,7 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
     // 5) Burn per-segment captions (word-level, punchy style)
     const srtPath = path.join(workDir, `captions_${idx}.srt`);
     buildSrtFromWords(words, srtPath, 3);
-    const captionStyle = "FontName=Arial,Bold=1,FontSize=30,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=4,Shadow=1,Alignment=2,MarginV=110";
+    const captionStyle = "FontName=Arial,Bold=1,FontSize=58,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=6,Shadow=2,Alignment=2,MarginV=160";
 
     // 6) Mux this segment's matched video + its narration + captions
     const segOutPath = path.join(workDir, `final_seg_${idx}.mp4`);
