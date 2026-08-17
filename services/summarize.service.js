@@ -131,7 +131,7 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
     const end = Math.min(originalEnd, start + 10);
     const dur = Math.max(0.5, end - start);
 
-    if (total + dur > maxDurationSeconds) break;
+    if (total + dur > maxDurationSeconds) continue; // skip this one, keep checking the rest
 
     clamped.push({
       ...s,
@@ -142,6 +142,14 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
     total += dur;
   }
   parsed.segments = clamped;
+
+  const MIN_SEGMENTS = 8;
+  const MIN_TOTAL_SECONDS = 45; // reject obviously-too-short outputs
+  if (parsed.segments.length < MIN_SEGMENTS || total < MIN_TOTAL_SECONDS) {
+    throw new Error(
+      `summarizeAndPickClips: Groq returned too few/short segments (${parsed.segments.length} segments, ${total.toFixed(1)}s total). Rejecting to avoid a too-short Short.`
+    );
+  }
 
   return parsed;
 }
@@ -158,7 +166,19 @@ async function transcribeAndSummarize(videoPath, workDir, { title, maxDurationSe
   const transcriptSegments = buildTimestampedTranscript(words);
 
   console.log('  -> Summarizing into synced English segments...');
-  const result = await summarizeAndPickClips(transcriptSegments, { title, maxDurationSeconds });
+  let result;
+  let lastErr;
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      result = await summarizeAndPickClips(transcriptSegments, { title, maxDurationSeconds });
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`  -> summarizeAndPickClips attempt ${attempt}/${MAX_ATTEMPTS} failed: ${err.message}`);
+    }
+  }
+  if (!result) throw lastErr;
 
   return { ...result, sourceLanguage: language };
 }
