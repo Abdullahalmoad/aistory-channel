@@ -139,7 +139,7 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
       // 5) Burn per-segment captions (word-level, punchy style)
       const srtPath = path.join(workDir, `captions_${idx}.srt`);
       buildSrtFromWords(words, srtPath, 3);
-      const captionStyle = "FontName=Arial,Bold=1,FontSize=58,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=6,Shadow=2,Alignment=2,MarginV=160";
+      const captionStyle = "FontName=Arial,Bold=1,FontSize=26,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=90,WrapStyle=2";
 
       // 6) Mux this segment's matched video + its narration + captions
       const segOutPath = path.join(workDir, `final_seg_${idx}.mp4`);
