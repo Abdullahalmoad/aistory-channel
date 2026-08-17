@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { EdgeTTS } = require('edge-tts-universal');
-const { buildSrtFromWords } = require('./srt.util');
+const { buildTiktokAssFromWords } = require('./srt.util');
 
 const NARRATOR_VOICE = process.env.SUMMARY_TTS_VOICE || 'en-US-EricNeural';
 const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
@@ -136,10 +136,10 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
         `time-stretch clip ${idx}`
       );
 
-      // 5) Burn per-segment captions (word-level, punchy style)
-      const srtPath = path.join(workDir, `captions_${idx}.srt`);
-      buildSrtFromWords(words, srtPath, 3);
-      const captionStyle = "FontName=Arial,Bold=1,FontSize=26,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=90,WrapStyle=2";
+      // 5) Burn per-segment captions: TikTok-style, one colored word at a
+      // time, popping in the lower-third of the frame.
+      const assPath = path.join(workDir, `captions_${idx}.ass`);
+      buildTiktokAssFromWords(words, assPath, { videoWidth: 1080, videoHeight: 1920, yRatio: 0.7 });
 
       // 6) Mux this segment's matched video + its narration + captions
       const segOutPath = path.join(workDir, `final_seg_${idx}.mp4`);
@@ -149,7 +149,7 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
           '-i', narrationPath,
           '-map', '0:v:0',
           '-map', '1:a:0',
-          '-vf', `subtitles=${srtPath}:force_style='${captionStyle}'`,
+          '-vf', `ass=${assPath}`,
           '-shortest',
           '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
           '-c:a', 'aac', '-b:a', '160k',
