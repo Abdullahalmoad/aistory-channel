@@ -84,12 +84,12 @@ Timestamped transcript of the source video:
 ${transcriptBlock}
 
 Your task: build a list of 12 to 18 narration "segments". Each segment has:
-- "text": one short punchy English sentence (max ~15 words) that will be spoken aloud
+- "text": one punchy English sentence that will be spoken aloud - MUST be 12 to 20 words long (not shorter than 12 words - short choppy fragments make the video too short)
 - "start" and "end": the timestamp range (in seconds, numbers) from the ORIGINAL video transcript above that visually matches this sentence - this is what will play on screen WHILE this sentence is narrated
 
 Rules for a high-retention Short:
 1. Segment 1's text MUST be a strong hook in the first sentence (a question, a shocking claim, or "Most people don't know...") - this determines if viewers keep watching past 3 seconds.
-2. Keep sentences short, punchy, spoken English - no markdown, no stage directions.
+2. Keep sentences punchy, spoken English, EACH sentence must be 12-20 words (never shorter than 12 words) - no markdown, no stage directions.
 3. Each segment's start/end range should be 2 to 10 seconds long. Never use more than 10 seconds for a single segment., taken from moments in the transcript above that best match what the sentence describes.
 4. Total of all (end-start) across segments must stay under ${maxDurationSeconds} seconds.
 5. End with a punchy closing line (a twist, a question, or a call to keep watching for more).
@@ -148,8 +148,8 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
   // not by how long the matched source clips are - so estimate narration
   // time from word count (~2.5 spoken words/sec) instead of `total`.
   const totalWords = parsed.segments.reduce((sum, s) => sum + String(s.text || '').trim().split(/\s+/).filter(Boolean).length, 0);
-  const estimatedNarrationSeconds = totalWords / 2.5;
-  const MIN_NARRATION_SECONDS = 65; // safety margin over the 60s target
+  const estimatedNarrationSeconds = totalWords / 2.3;
+  const MIN_NARRATION_SECONDS = 60; // safety margin over the 60s target
   if (parsed.segments.length < MIN_SEGMENTS || estimatedNarrationSeconds < MIN_NARRATION_SECONDS) {
     throw new Error(
       `summarizeAndPickClips: Groq returned too few/short segments (${parsed.segments.length} segments, ~${estimatedNarrationSeconds.toFixed(1)}s estimated narration). Rejecting to avoid a too-short Short.`
