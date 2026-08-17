@@ -83,7 +83,7 @@ Source video title: "${title}"
 Timestamped transcript of the source video:
 ${transcriptBlock}
 
-Your task: build a list of 10 to 17 narration "segments". Each segment has:
+Your task: build a list of 12 to 18 narration "segments". Each segment has:
 - "text": one short punchy English sentence (max ~15 words) that will be spoken aloud
 - "start" and "end": the timestamp range (in seconds, numbers) from the ORIGINAL video transcript above that visually matches this sentence - this is what will play on screen WHILE this sentence is narrated
 
@@ -93,7 +93,7 @@ Rules for a high-retention Short:
 3. Each segment's start/end range should be 2 to 10 seconds long. Never use more than 10 seconds for a single segment., taken from moments in the transcript above that best match what the sentence describes.
 4. Total of all (end-start) across segments must stay under ${maxDurationSeconds} seconds.
 5. End with a punchy closing line (a twist, a question, or a call to keep watching for more).
-6. Vary pacing: mix short and longer clips, but NEVER exceed 10 seconds for any single clip. Prefer 10 to 17 distinct clips from different moments of the source video.
+6. Vary pacing: mix short and longer clips, but NEVER exceed 10 seconds for any single clip. Prefer 12 to 18 distinct clips from different moments of the source video.
 
 Also write a short catchy English YouTube title and a 1-2 sentence English description.
 
@@ -143,8 +143,8 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
   }
   parsed.segments = clamped;
 
-  const MIN_SEGMENTS = 8;
-  const MIN_TOTAL_SECONDS = 45; // reject obviously-too-short outputs
+  const MIN_SEGMENTS = 12;
+  const MIN_TOTAL_SECONDS = 70; // ensures the final Short comfortably clears 60s
   if (parsed.segments.length < MIN_SEGMENTS || total < MIN_TOTAL_SECONDS) {
     throw new Error(
       `summarizeAndPickClips: Groq returned too few/short segments (${parsed.segments.length} segments, ${total.toFixed(1)}s total). Rejecting to avoid a too-short Short.`
