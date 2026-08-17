@@ -143,11 +143,16 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
   }
   parsed.segments = clamped;
 
-  const MIN_SEGMENTS = 12;
-  const MIN_TOTAL_SECONDS = 70; // ensures the final Short comfortably clears 60s
-  if (parsed.segments.length < MIN_SEGMENTS || total < MIN_TOTAL_SECONDS) {
+  const MIN_SEGMENTS = 10;
+  // The final Short's length is driven by the spoken narration duration,
+  // not by how long the matched source clips are - so estimate narration
+  // time from word count (~2.5 spoken words/sec) instead of `total`.
+  const totalWords = parsed.segments.reduce((sum, s) => sum + String(s.text || '').trim().split(/\s+/).filter(Boolean).length, 0);
+  const estimatedNarrationSeconds = totalWords / 2.5;
+  const MIN_NARRATION_SECONDS = 65; // safety margin over the 60s target
+  if (parsed.segments.length < MIN_SEGMENTS || estimatedNarrationSeconds < MIN_NARRATION_SECONDS) {
     throw new Error(
-      `summarizeAndPickClips: Groq returned too few/short segments (${parsed.segments.length} segments, ${total.toFixed(1)}s total). Rejecting to avoid a too-short Short.`
+      `summarizeAndPickClips: Groq returned too few/short segments (${parsed.segments.length} segments, ~${estimatedNarrationSeconds.toFixed(1)}s estimated narration). Rejecting to avoid a too-short Short.`
     );
   }
 
