@@ -108,6 +108,9 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
     model: MODEL,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.8,
+    max_tokens: 4096,
+    reasoning_effort: 'low',
+    response_format: { type: 'json_object' },
   });
 
   const raw = completion.choices[0]?.message?.content || '';
