@@ -49,7 +49,7 @@ jobs:
       - name: Run summary Short pipeline (discover source video, summarize in English, cut clips, upload Short only)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GROQ_MODEL: llama-3.3-70b-versatile
+          GROQ_MODEL: openai/gpt-oss-120b
           SUMMARY_TTS_VOICE: en-US-EricNeural
           YT_COOKIES_FILE: cookies.txt
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
