@@ -72,9 +72,18 @@ function fmtTime(s) {
 // This is the key to frame-accurate sync: the LLM picks matching pairs
 // instead of one big narration + a separate clip list.
 async function summarizeAndPickClips(transcriptSegments, { title, maxDurationSeconds = 175 } = {}) {
-  const transcriptBlock = transcriptSegments
+  // Free-tier Groq accounts have an 8000 tokens-per-minute limit. A long
+  // source video can produce a transcript big enough to blow past that on
+  // its own, causing a 413 "Request too large" error. Cap how much of the
+  // transcript we send (~1 token ≈ 4 chars, so this keeps the prompt safely
+  // under the limit even with the rest of the instructions included).
+  const MAX_TRANSCRIPT_CHARS = 7000;
+  let transcriptBlock = transcriptSegments
     .map((s) => `[${fmtTime(s.start)}-${fmtTime(s.end)}] ${s.text}`)
     .join('\n');
+  if (transcriptBlock.length > MAX_TRANSCRIPT_CHARS) {
+    transcriptBlock = transcriptBlock.slice(0, MAX_TRANSCRIPT_CHARS) + '\n[...transcript truncated...]';
+  }
 
   const prompt = `You are producing a viral English-language YouTube Short that summarizes a source video (source may be Arabic or English - your narration must ALWAYS be English).
 
@@ -108,7 +117,7 @@ Return ONLY valid JSON, no markdown fences, in this exact shape:
     model: MODEL,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.8,
-    max_tokens: 4096,
+    max_tokens: 2200,
     reasoning_effort: 'low',
     response_format: { type: 'json_object' },
   });
