@@ -40,7 +40,7 @@ async function downloadSourceVideo(url, workDir) {
   fs.mkdirSync(workDir, { recursive: true });
   const outputTemplate = path.join(workDir, 'source.%(ext)s');
 
-  const baseArgs = [
+  const args = [
     '-f', 'bv*[height<=1080]+ba/b[height<=1080]',
     '--merge-output-format', 'mp4',
     '--no-playlist',
@@ -52,17 +52,15 @@ async function downloadSourceVideo(url, workDir) {
     url,
   ];
 
-  const cookiesAvailable = process.env.YT_COOKIES_FILE && fs.existsSync(process.env.YT_COOKIES_FILE);
+  // NOTE: we deliberately do NOT pass --cookies here. There's a known,
+  // currently-open yt-dlp bug (yt-dlp/yt-dlp#17389) where passing cookies
+  // makes YouTube return "The page needs to be reloaded" even for videos
+  // that would otherwise download fine. Almost all public videos don't need
+  // auth to download, so we skip cookies entirely for now.
 
   const MAX_ATTEMPTS = 4;
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    // Cookies can sometimes make YouTube apply *stricter* bot checks against
-    // automated clients (like tv). Try without cookies first; only fall
-    // back to using them on the final attempt, for videos that genuinely
-    // require sign-in (age-restricted, etc).
-    const useCookies = cookiesAvailable && attempt === MAX_ATTEMPTS;
-    const args = useCookies ? [...baseArgs, '--cookies', process.env.YT_COOKIES_FILE] : baseArgs;
     try {
       await runYtDlp(args, 'yt-dlp download');
       const produced = fs.readdirSync(workDir).find((f) => f.startsWith('source.'));
@@ -70,7 +68,9 @@ async function downloadSourceVideo(url, workDir) {
       return path.join(workDir, produced);
     } catch (err) {
       lastErr = err;
-      console.warn(`  -> yt-dlp download attempt ${attempt}/${MAX_ATTEMPTS} (cookies=${useCookies}) failed: ${err.message.split('\n')[0]}`);
+      // Log the full error (not just the first line) so failures are
+      // actually diagnosable from the GitHub Actions log.
+      console.warn(`  -> yt-dlp download attempt ${attempt}/${MAX_ATTEMPTS} failed:\n${err.message}`);
       if (attempt < MAX_ATTEMPTS) await sleep(15000);
     }
   }
