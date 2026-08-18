@@ -44,19 +44,18 @@ async function downloadSourceVideo(url, workDir) {
     '-f', 'bv*[height<=1080]+ba/b[height<=1080]',
     '--merge-output-format', 'mp4',
     '--no-playlist',
-    // Let yt-dlp try multiple clients in order; tv/tv_simply tend to be the
-    // most reliable against the current JS-challenge issues, with web as a
-    // fallback if a video isn't available on tv.
-    '--extractor-args', 'youtube:player_client=tv,tv_simply,web',
+    // GitHub Actions runner IPs are commonly bot-flagged by YouTube, which
+    // requires signed-in cookies to pass. The "tv"/"tv_simply" clients don't
+    // support cookies at all (yt-dlp skips them silently), so we use "web"
+    // here, which does honor --cookies.
+    '--extractor-args', 'youtube:player_client=web',
     '-o', outputTemplate,
     url,
   ];
 
-  // NOTE: we deliberately do NOT pass --cookies here. There's a known,
-  // currently-open yt-dlp bug (yt-dlp/yt-dlp#17389) where passing cookies
-  // makes YouTube return "The page needs to be reloaded" even for videos
-  // that would otherwise download fine. Almost all public videos don't need
-  // auth to download, so we skip cookies entirely for now.
+  if (process.env.YT_COOKIES_FILE && fs.existsSync(process.env.YT_COOKIES_FILE)) {
+    args.push('--cookies', process.env.YT_COOKIES_FILE);
+  }
 
   const MAX_ATTEMPTS = 4;
   let lastErr;
