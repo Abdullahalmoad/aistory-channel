@@ -48,7 +48,7 @@ async function downloadSourceVideo(url, workDir) {
     // requires signed-in cookies to pass. The "tv"/"tv_simply" clients don't
     // support cookies at all (yt-dlp skips them silently), so we use "web"
     // here, which does honor --cookies.
-    '--extractor-args', 'youtube:player_client=web',
+    '--extractor-args', 'youtube:player_client=web,mweb',
     '-o', outputTemplate,
     url,
   ];
