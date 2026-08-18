@@ -40,7 +40,7 @@ async function downloadSourceVideo(url, workDir) {
   fs.mkdirSync(workDir, { recursive: true });
   const outputTemplate = path.join(workDir, 'source.%(ext)s');
 
-  const args = [
+  const baseArgs = [
     '-f', 'bv*[height<=1080]+ba/b[height<=1080]',
     '--merge-output-format', 'mp4',
     '--no-playlist',
@@ -52,15 +52,17 @@ async function downloadSourceVideo(url, workDir) {
     url,
   ];
 
-  // If cookies file is configured (some videos need auth), pass it through -
-  // same pattern already used in YouTube-Bot-2- project.
-  if (process.env.YT_COOKIES_FILE && fs.existsSync(process.env.YT_COOKIES_FILE)) {
-    args.push('--cookies', process.env.YT_COOKIES_FILE);
-  }
+  const cookiesAvailable = process.env.YT_COOKIES_FILE && fs.existsSync(process.env.YT_COOKIES_FILE);
 
   const MAX_ATTEMPTS = 4;
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Cookies can sometimes make YouTube apply *stricter* bot checks against
+    // automated clients (like tv). Try without cookies first; only fall
+    // back to using them on the final attempt, for videos that genuinely
+    // require sign-in (age-restricted, etc).
+    const useCookies = cookiesAvailable && attempt === MAX_ATTEMPTS;
+    const args = useCookies ? [...baseArgs, '--cookies', process.env.YT_COOKIES_FILE] : baseArgs;
     try {
       await runYtDlp(args, 'yt-dlp download');
       const produced = fs.readdirSync(workDir).find((f) => f.startsWith('source.'));
@@ -68,7 +70,7 @@ async function downloadSourceVideo(url, workDir) {
       return path.join(workDir, produced);
     } catch (err) {
       lastErr = err;
-      console.warn(`  -> yt-dlp download attempt ${attempt}/${MAX_ATTEMPTS} failed: ${err.message.split('\n')[0]}`);
+      console.warn(`  -> yt-dlp download attempt ${attempt}/${MAX_ATTEMPTS} (cookies=${useCookies}) failed: ${err.message.split('\n')[0]}`);
       if (attempt < MAX_ATTEMPTS) await sleep(15000);
     }
   }
