@@ -35,7 +35,7 @@ async function downloadSourceVideo(url, workDir) {
     '-f', 'bv*[height<=1080]+ba/b[height<=1080]',
     '--merge-output-format', 'mp4',
     '--no-playlist',
-    '--extractor-args', 'youtube:player_client=tv,web_safari',
+    '--extractor-args', 'youtube:player_client=tv',
     '-o', outputTemplate,
     url,
   ];
