@@ -39,7 +39,7 @@ function getDurationSeconds(filePath) {
 }
 
 async function generateSegmentNarration(text, outputPath) {
-  const tts = new EdgeTTS(text, NARRATOR_VOICE, { rate: '+2%', volume: '+0%', pitch: '+0Hz' });
+  const tts = new EdgeTTS(text, NARRATOR_VOICE, { rate: '+12%', volume: '+0%', pitch: '+3Hz' });
   const result = await tts.synthesize();
   const buffer = Buffer.from(await result.audio.arrayBuffer());
   fs.writeFileSync(outputPath, buffer);
