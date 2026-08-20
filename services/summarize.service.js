@@ -98,11 +98,12 @@ Your task: build a list of 12 to 18 narration "segments". Each segment has:
 
 Rules for a high-retention Short:
 1. Segment 1's text MUST be a strong hook in the first sentence (a question, a shocking claim, or "Most people don't know...") - this determines if viewers keep watching past 3 seconds.
-2. Keep sentences punchy, spoken English, EACH sentence must be 12-20 words (never shorter than 12 words) - no markdown, no stage directions.
-3. Each segment's start/end range should be 2 to 10 seconds long. Never use more than 10 seconds for a single segment., taken from moments in the transcript above that best match what the sentence describes.
-4. Total of all (end-start) across segments must stay under ${maxDurationSeconds} seconds.
-5. End with a punchy closing line (a twist, a question, or a call to keep watching for more).
-6. Vary pacing: mix short and longer clips, but NEVER exceed 10 seconds for any single clip. Prefer 12 to 18 distinct clips from different moments of the source video.
+2. TONE: Write like a fun, energetic YouTuber talking to a friend - NOT a documentary narrator or textbook. Use casual, punchy phrasing, mild excitement/disbelief ("wait, it gets crazier", "here's the wild part"), and a sense of humor where it fits naturally. Avoid dry academic phrasing like "it is believed that" or "historians suggest" - just say the interesting thing directly and with energy.
+3. Keep sentences punchy, spoken English, EACH sentence must be 12-20 words (never shorter than 12 words) - no markdown, no stage directions.
+4. Each segment's start/end range should be 2 to 10 seconds long. Never use more than 10 seconds for a single segment., taken from moments in the transcript above that best match what the sentence describes.
+5. Total of all (end-start) across segments must stay under ${maxDurationSeconds} seconds.
+6. End with a punchy closing line (a twist, a question, or a call to keep watching for more) - keep the fun tone here too, not a flat summary.
+7. Vary pacing: mix short and longer clips, but NEVER exceed 10 seconds for any single clip. Prefer 12 to 18 distinct clips from different moments of the source video.
 
 Also write a short catchy English YouTube title and a 1-2 sentence English description.
 
