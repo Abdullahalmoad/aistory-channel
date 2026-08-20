@@ -127,7 +127,10 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
       await runFfmpeg(
         [
           '-i', rawClipPath,
-          '-vf', `setpts=${clampedFactor}*PTS`,
+          // Extend with a cloned last frame as a safety buffer, so tiny
+          // rounding differences never leave the video a few ms shorter
+          // than the narration (which used to cut the voice off mid-word).
+          '-vf', `setpts=${clampedFactor}*PTS,tpad=stop_mode=clone:stop_duration=1`,
           '-an',
           '-r', '30',
           '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
@@ -141,7 +144,13 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
       const assPath = path.join(workDir, `captions_${idx}.ass`);
       buildTiktokAssFromWords(words, assPath, { videoWidth: 1080, videoHeight: 1920, yRatio: 0.7 });
 
-      // 6) Mux this segment's matched video + its narration + captions
+      // 6) Mux this segment's matched video + its narration + captions.
+      // Use an explicit duration (the narration's own length) instead of
+      // -shortest, since -shortest was cutting the voice off mid-sentence
+      // whenever the stretched video came out a few ms shorter than the
+      // audio. A tiny audio fade in/out smooths the cut between segments
+      // instead of an abrupt, clicky jump.
+      const fadeOutStart = Math.max(0, narrationDur - 0.05);
       const segOutPath = path.join(workDir, `final_seg_${idx}.mp4`);
       await runFfmpeg(
         [
@@ -150,7 +159,8 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
           '-map', '0:v:0',
           '-map', '1:a:0',
           '-vf', `ass=${assPath}`,
-          '-shortest',
+          '-af', `afade=t=in:st=0:d=0.02,afade=t=out:st=${fadeOutStart}:d=0.05`,
+          '-t', String(narrationDur),
           '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
           '-c:a', 'aac', '-b:a', '160k',
           segOutPath,
