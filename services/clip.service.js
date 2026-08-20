@@ -126,13 +126,17 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
       const matchedClipPath = path.join(workDir, `matched_${idx}.mp4`);
       await runFfmpeg(
         [
+          // Loop the raw clip so it never "runs out" - if the sped-up clip
+          // is still shorter than the narration, it keeps playing (looping)
+          // instead of freezing on a static last frame.
+          '-stream_loop', '-1',
           '-i', rawClipPath,
-          // Extend with a cloned last frame as a safety buffer, so tiny
-          // rounding differences never leave the video a few ms shorter
-          // than the narration (which used to cut the voice off mid-word).
-          '-vf', `setpts=${clampedFactor}*PTS,tpad=stop_mode=clone:stop_duration=1`,
+          '-vf', `setpts=${clampedFactor}*PTS`,
           '-an',
           '-r', '30',
+          // Slightly overshoot the narration length; the final mux step
+          // trims to the exact narration duration anyway.
+          '-t', String(narrationDur + 0.3),
           '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
           matchedClipPath,
         ],
