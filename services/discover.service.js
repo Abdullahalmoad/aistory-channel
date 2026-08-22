@@ -68,9 +68,10 @@ async function fetchTrendingCandidates(youtube, regionCode, maxResults = 25) {
       title: item.snippet.title,
       channelTitle: item.snippet.channelTitle,
       publishedAt: item.snippet.publishedAt,
+      categoryId: item.snippet.categoryId,
       duration,
     };
-  });
+  }).filter((v) => v.categoryId !== '10'); // exclude Music category
 }
 
 // Picks one not-yet-used candidate video from YouTube's trending chart,
