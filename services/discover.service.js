@@ -4,21 +4,22 @@ const { google } = require('googleapis');
 
 const USED_PATH = path.join(__dirname, '..', 'data', 'used-videos.json');
 
-// Search queries covering the same niche as @ANTHROPOSS1-style content:
-// illustrated explainer videos about early human history, "firsts" in
-// civilization, ancient anthropology curiosities. Mixed Arabic + English.
+// Fallback search queries used only if the trending chart comes up empty or
+// fails (e.g. quota issue). These chase general "what's currently buzzing"
+// topics rather than a fixed niche.
 const QUERIES = [
-  'تاريخ الإنسان القديم',
-  'أول حضارة في التاريخ',
-  'كيف اخترع الإنسان القديم',
-  'أصل الأشياء تاريخ البشرية',
-  'حضارات قديمة غامضة',
-  'ancient human history explained',
-  'first civilization history animated',
-  'prehistoric humans how it started',
-  'history of early humans documentary',
-  'ancient anthropology explained animation',
+  'ترند اليوم',
+  'فيديو فيرال',
+  'أكثر فيديو مشاهدة هذا الأسبوع',
+  'trending today',
+  'viral video this week',
+  'what everyone is talking about',
 ];
+
+// Regions to pull YouTube's official "Trending" chart from. Mix Arabic-
+// speaking regions with a couple of large English-speaking ones so we catch
+// both local and global trends.
+const TRENDING_REGIONS = ['SA', 'IQ', 'EG', 'US', 'GB'];
 
 function loadUsed() {
   if (!fs.existsSync(USED_PATH)) return { videoIds: [] };
@@ -54,27 +55,7 @@ function getYoutubeClient() {
   return google.youtube({ version: 'v3', auth: apiKey });
 }
 
-async function searchCandidates(youtube, query, maxResults = 10) {
-  const res = await youtube.search.list({
-    part: ['snippet'],
-    q: query,
-    type: ['video'],
-    maxResults,
-    order: 'relevance',
-    videoDuration: 'medium', // 4-20 min, avoids very short/very long
-    safeSearch: 'strict',
-  });
-  return (res.data.items || []).map((item) => ({
-    videoId: item.id.videoId,
-    title: item.snippet.title,
-    channelTitle: item.snippet.channelTitle,
-    publishedAt: item.snippet.publishedAt,
-  }));
-}
-
-async function getVideoDurationSeconds(youtube, videoId) {
-  const res = await youtube.videos.list({ part: ['contentDetails'], id: [videoId] });
-  const iso = res.data.items?.[0]?.contentDetails?.duration;
+function parseIsoDuration(iso) {
   if (!iso) return null;
   const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!m) return null;
@@ -84,12 +65,75 @@ async function getVideoDurationSeconds(youtube, videoId) {
   return h * 3600 + min * 60 + s;
 }
 
-// Picks one not-yet-used candidate video across all queries.
+// Pulls YouTube's official "Trending" chart (the same list shown on
+// youtube.com/feed/trending) for a given region.
+async function getTrendingCandidates(youtube, regionCode, maxResults = 20) {
+  const res = await youtube.videos.list({
+    part: ['snippet', 'contentDetails'],
+    chart: 'mostPopular',
+    regionCode,
+    maxResults,
+  });
+  return (res.data.items || []).map((item) => ({
+    videoId: item.id,
+    title: item.snippet.title,
+    channelTitle: item.snippet.channelTitle,
+    publishedAt: item.snippet.publishedAt,
+    duration: parseIsoDuration(item.contentDetails?.duration),
+    source: `trending:${regionCode}`,
+  }));
+}
+
+async function searchCandidates(youtube, query, maxResults = 10) {
+  const res = await youtube.search.list({
+    part: ['snippet'],
+    q: query,
+    type: ['video'],
+    maxResults,
+    order: 'viewCount',
+    videoDuration: 'medium', // 4-20 min, avoids very short/very long
+    safeSearch: 'strict',
+  });
+  return (res.data.items || []).map((item) => ({
+    videoId: item.id.videoId,
+    title: item.snippet.title,
+    channelTitle: item.snippet.channelTitle,
+    publishedAt: item.snippet.publishedAt,
+    source: `search:${query}`,
+  }));
+}
+
+async function getVideoDurationSeconds(youtube, videoId) {
+  const res = await youtube.videos.list({ part: ['contentDetails'], id: [videoId] });
+  return parseIsoDuration(res.data.items?.[0]?.contentDetails?.duration);
+}
+
+// Picks one not-yet-used, currently-trending candidate video.
 async function findNextSourceVideo() {
   const youtube = getYoutubeClient();
   const used = loadUsed();
-  const shuffledQueries = [...QUERIES].sort(() => Math.random() - 0.5);
 
+  // 1) Try the official trending chart first, across a shuffled list of
+  // regions, so we're reacting to what's actually viral right now.
+  const shuffledRegions = [...TRENDING_REGIONS].sort(() => Math.random() - 0.5);
+  for (const region of shuffledRegions) {
+    let candidates;
+    try {
+      candidates = await getTrendingCandidates(youtube, region);
+    } catch (err) {
+      console.warn(`[discover] trending chart failed for region "${region}": ${err.message}`);
+      continue;
+    }
+
+    const fresh = candidates.filter((c) => !used.videoIds.includes(c.videoId) && c.duration && c.duration >= 120);
+    for (const candidate of fresh) {
+      return { ...candidate, query: candidate.source, url: `https://www.youtube.com/watch?v=${candidate.videoId}` };
+    }
+  }
+
+  // 2) Fall back to trend-hunting search queries if the chart had nothing
+  // fresh (e.g. we've already used everything currently trending).
+  const shuffledQueries = [...QUERIES].sort(() => Math.random() - 0.5);
   for (const query of shuffledQueries) {
     let candidates;
     try {
@@ -100,17 +144,14 @@ async function findNextSourceVideo() {
     }
 
     const fresh = candidates.filter((c) => !used.videoIds.includes(c.videoId));
-    if (fresh.length === 0) continue;
-
     for (const candidate of fresh) {
       const duration = await getVideoDurationSeconds(youtube, candidate.videoId).catch(() => null);
-      // skip anything too short to summarize meaningfully
       if (duration && duration < 120) continue;
-      return { ...candidate, duration, query, url: `https://www.youtube.com/watch?v=${candidate.videoId}` };
+      return { ...candidate, duration, query: candidate.source, url: `https://www.youtube.com/watch?v=${candidate.videoId}` };
     }
   }
 
-  throw new Error('No fresh candidate videos found across all queries - try again later or widen QUERIES');
+  throw new Error('No fresh candidate videos found in trending chart or fallback queries - try again later');
 }
 
-module.exports = { findNextSourceVideo, markUsed, loadUsed, QUERIES };
+module.exports = { findNextSourceVideo, markUsed, loadUsed, QUERIES, TRENDING_REGIONS };
