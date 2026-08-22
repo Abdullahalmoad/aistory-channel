@@ -4,22 +4,10 @@ const { google } = require('googleapis');
 
 const USED_PATH = path.join(__dirname, '..', 'data', 'used-videos.json');
 
-// Search queries covering curiosity-driven psychology / pop-science
-// explainer content - "why does your brain..." style videos that answer a
-// personal, relatable question rather than general historical narration.
-// Mixed Arabic + English.
-const QUERIES = [
-  'لماذا يفعل دماغك هذا علم نفس',
-  'ظواهر نفسية غريبة تفسير علمي',
-  'لماذا نخاف من هذا الشيء علم نفس',
-  'أسرار الدماغ البشري غريبة',
-  'سلوك بشري غريب تفسير علمي',
-  'why does your brain psychology explained',
-  'weird psychology phenomenon explained',
-  'why do humans fear this evolutionary psychology',
-  'uncanny valley psychology explained',
-  'strange human behavior science explained',
-];
+// Region(s) to pull trending videos from. Iraq isn't always populated with
+// enough variety on YouTube's trending chart, so we mix in a couple of
+// nearby/major regions as fallbacks.
+const REGIONS = ['IQ', 'SA', 'US'];
 
 function loadUsed() {
   if (!fs.existsSync(USED_PATH)) return { videoIds: [] };
@@ -55,63 +43,63 @@ function getYoutubeClient() {
   return google.youtube({ version: 'v3', auth: apiKey });
 }
 
-async function searchCandidates(youtube, query, maxResults = 10) {
-  const res = await youtube.search.list({
-    part: ['snippet'],
-    q: query,
-    type: ['video'],
+async function fetchTrendingCandidates(youtube, regionCode, maxResults = 25) {
+  const res = await youtube.videos.list({
+    part: ['snippet', 'contentDetails'],
+    chart: 'mostPopular',
+    regionCode,
     maxResults,
-    order: 'relevance',
-    videoDuration: 'medium', // 4-20 min, avoids very short/very long
-    safeSearch: 'strict',
+    videoCategoryId: undefined, // no category filter - pull whatever's trending
   });
-  return (res.data.items || []).map((item) => ({
-    videoId: item.id.videoId,
-    title: item.snippet.title,
-    channelTitle: item.snippet.channelTitle,
-    publishedAt: item.snippet.publishedAt,
-  }));
+  return (res.data.items || []).map((item) => {
+    const iso = item.contentDetails?.duration;
+    let duration = null;
+    if (iso) {
+      const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      if (m) {
+        const h = parseInt(m[1] || '0', 10);
+        const min = parseInt(m[2] || '0', 10);
+        const s = parseInt(m[3] || '0', 10);
+        duration = h * 3600 + min * 60 + s;
+      }
+    }
+    return {
+      videoId: item.id,
+      title: item.snippet.title,
+      channelTitle: item.snippet.channelTitle,
+      publishedAt: item.snippet.publishedAt,
+      duration,
+    };
+  });
 }
 
-async function getVideoDurationSeconds(youtube, videoId) {
-  const res = await youtube.videos.list({ part: ['contentDetails'], id: [videoId] });
-  const iso = res.data.items?.[0]?.contentDetails?.duration;
-  if (!iso) return null;
-  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return null;
-  const h = parseInt(m[1] || '0', 10);
-  const min = parseInt(m[2] || '0', 10);
-  const s = parseInt(m[3] || '0', 10);
-  return h * 3600 + min * 60 + s;
-}
-
-// Picks one not-yet-used candidate video across all queries.
+// Picks one not-yet-used candidate video from YouTube's trending chart,
+// trying each configured region in a random order until a fresh candidate
+// with a usable duration is found.
 async function findNextSourceVideo() {
   const youtube = getYoutubeClient();
   const used = loadUsed();
-  const shuffledQueries = [...QUERIES].sort(() => Math.random() - 0.5);
+  const shuffledRegions = [...REGIONS].sort(() => Math.random() - 0.5);
 
-  for (const query of shuffledQueries) {
+  for (const regionCode of shuffledRegions) {
     let candidates;
     try {
-      candidates = await searchCandidates(youtube, query);
+      candidates = await fetchTrendingCandidates(youtube, regionCode);
     } catch (err) {
-      console.warn(`[discover] search failed for "${query}": ${err.message}`);
+      console.warn(`[discover] trending fetch failed for region "${regionCode}": ${err.message}`);
       continue;
     }
 
     const fresh = candidates.filter((c) => !used.videoIds.includes(c.videoId));
-    if (fresh.length === 0) continue;
-
     for (const candidate of fresh) {
-      const duration = await getVideoDurationSeconds(youtube, candidate.videoId).catch(() => null);
-      // skip anything too short to summarize meaningfully
-      if (duration && duration < 120) continue;
-      return { ...candidate, duration, query, url: `https://www.youtube.com/watch?v=${candidate.videoId}` };
+      // skip anything too short to summarize meaningfully, or extremely
+      // long (trending often includes full movies/streams we can't handle)
+      if (candidate.duration && (candidate.duration < 120 || candidate.duration > 3600)) continue;
+      return { ...candidate, query: `trending:${regionCode}`, url: `https://www.youtube.com/watch?v=${candidate.videoId}` };
     }
   }
 
-  throw new Error('No fresh candidate videos found across all queries - try again later or widen QUERIES');
+  throw new Error('No fresh trending candidate videos found across all regions - try again later or widen REGIONS');
 }
 
-module.exports = { findNextSourceVideo, markUsed, loadUsed, QUERIES };
+module.exports = { findNextSourceVideo, markUsed, loadUsed, REGIONS };
