@@ -5,21 +5,25 @@ const { google } = require('googleapis');
 const USED_PATH = path.join(__dirname, '..', 'data', 'used-videos.json');
 
 // Fallback search queries used only if the trending chart comes up empty or
-// fails (e.g. quota issue). These chase general "what's currently buzzing"
-// topics rather than a fixed niche.
+// fails (e.g. quota issue). These target commentary/analysis videos ABOUT a
+// trend, not the trending content itself (e.g. not a music video, but a
+// video explaining/reacting to why a song or topic is blowing up).
 const QUERIES = [
-  'ترند اليوم',
-  'فيديو فيرال',
-  'أكثر فيديو مشاهدة هذا الأسبوع',
-  'trending today',
-  'viral video this week',
-  'what everyone is talking about',
+  'why is this trending explained',
+  'trend explained breakdown',
+  'internet trend analysis',
+  'what happened viral explained',
+  'pop culture moment explained',
+  'this week in internet culture',
 ];
 
-// Regions to pull YouTube's official "Trending" chart from. Mix Arabic-
-// speaking regions with a couple of large English-speaking ones so we catch
-// both local and global trends.
-const TRENDING_REGIONS = ['SA', 'IQ', 'EG', 'US', 'GB'];
+// Western/English-speaking regions only, per request - pulls YouTube's
+// official "Trending" chart for each.
+const TRENDING_REGIONS = ['US', 'GB', 'CA', 'AU'];
+
+// YouTube category ID for Music - excluded from trending picks since we
+// want commentary/analysis content, not music videos themselves.
+const EXCLUDED_CATEGORY_IDS = ['10'];
 
 function loadUsed() {
   if (!fs.existsSync(USED_PATH)) return { videoIds: [] };
@@ -79,6 +83,7 @@ async function getTrendingCandidates(youtube, regionCode, maxResults = 20) {
     title: item.snippet.title,
     channelTitle: item.snippet.channelTitle,
     publishedAt: item.snippet.publishedAt,
+    categoryId: item.snippet.categoryId,
     duration: parseIsoDuration(item.contentDetails?.duration),
     source: `trending:${regionCode}`,
   }));
@@ -125,7 +130,9 @@ async function findNextSourceVideo() {
       continue;
     }
 
-    const fresh = candidates.filter((c) => !used.videoIds.includes(c.videoId) && c.duration && c.duration >= 120);
+    const fresh = candidates.filter(
+      (c) => !used.videoIds.includes(c.videoId) && c.duration && c.duration >= 120 && !EXCLUDED_CATEGORY_IDS.includes(c.categoryId)
+    );
     for (const candidate of fresh) {
       return { ...candidate, query: candidate.source, url: `https://www.youtube.com/watch?v=${candidate.videoId}` };
     }
