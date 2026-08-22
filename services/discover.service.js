@@ -4,20 +4,21 @@ const { google } = require('googleapis');
 
 const USED_PATH = path.join(__dirname, '..', 'data', 'used-videos.json');
 
-// Search queries covering the same niche as @ANTHROPOSS1-style content:
-// illustrated explainer videos about early human history, "firsts" in
-// civilization, ancient anthropology curiosities. Mixed Arabic + English.
+// Search queries covering curiosity-driven psychology / pop-science
+// explainer content - "why does your brain..." style videos that answer a
+// personal, relatable question rather than general historical narration.
+// Mixed Arabic + English.
 const QUERIES = [
-  'تاريخ الإنسان القديم',
-  'أول حضارة في التاريخ',
-  'كيف اخترع الإنسان القديم',
-  'أصل الأشياء تاريخ البشرية',
-  'حضارات قديمة غامضة',
-  'ancient human history explained',
-  'first civilization history animated',
-  'prehistoric humans how it started',
-  'history of early humans documentary',
-  'ancient anthropology explained animation',
+  'لماذا يفعل دماغك هذا علم نفس',
+  'ظواهر نفسية غريبة تفسير علمي',
+  'لماذا نخاف من هذا الشيء علم نفس',
+  'أسرار الدماغ البشري غريبة',
+  'سلوك بشري غريب تفسير علمي',
+  'why does your brain psychology explained',
+  'weird psychology phenomenon explained',
+  'why do humans fear this evolutionary psychology',
+  'uncanny valley psychology explained',
+  'strange human behavior science explained',
 ];
 
 function loadUsed() {
