@@ -7,7 +7,7 @@ const USED_PATH = path.join(__dirname, '..', 'data', 'used-videos.json');
 // Region(s) to pull trending videos from. Iraq isn't always populated with
 // enough variety on YouTube's trending chart, so we mix in a couple of
 // nearby/major regions as fallbacks.
-const REGIONS = ['IQ', 'SA', 'US'];
+const REGIONS = ['US', 'GB', 'CA', 'AU'];
 
 function loadUsed() {
   if (!fs.existsSync(USED_PATH)) return { videoIds: [] };
