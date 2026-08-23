@@ -43,6 +43,51 @@ function getYoutubeClient() {
   return google.youtube({ version: 'v3', auth: apiKey });
 }
 
+// Priority search queries for popular creator / celebrity challenge-style
+// content (e.g. MrBeast), tried before falling back to general trending.
+const PRIORITY_QUERIES = [
+  'MrBeast challenge',
+  'MrBeast latest video',
+  'celebrity challenge viral',
+  'youtuber challenge million dollars',
+];
+
+async function searchCandidates(youtube, query, maxResults = 15) {
+  const res = await youtube.search.list({
+    part: ['snippet'],
+    q: query,
+    type: ['video'],
+    maxResults,
+    order: 'date',
+    safeSearch: 'strict',
+  });
+  const ids = (res.data.items || []).map((item) => item.id.videoId).filter(Boolean);
+  if (ids.length === 0) return [];
+
+  const detailsRes = await youtube.videos.list({ part: ['snippet', 'contentDetails'], id: ids });
+  return (detailsRes.data.items || []).map((item) => {
+    const iso = item.contentDetails?.duration;
+    let duration = null;
+    if (iso) {
+      const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      if (m) {
+        const h = parseInt(m[1] || '0', 10);
+        const min = parseInt(m[2] || '0', 10);
+        const s = parseInt(m[3] || '0', 10);
+        duration = h * 3600 + min * 60 + s;
+      }
+    }
+    return {
+      videoId: item.id,
+      title: item.snippet.title,
+      channelTitle: item.snippet.channelTitle,
+      publishedAt: item.snippet.publishedAt,
+      categoryId: item.snippet.categoryId,
+      duration,
+    };
+  }).filter((v) => v.categoryId !== '10'); // exclude Music
+}
+
 async function fetchTrendingCandidates(youtube, regionCode) {
   let all = [];
   let pageToken = undefined;
@@ -85,12 +130,29 @@ async function fetchTrendingCandidates(youtube, regionCode) {
   }).filter((v) => v.categoryId !== '10'); // exclude Music category
 }
 
-// Picks one not-yet-used candidate video from YouTube's trending chart,
-// trying each configured region in a random order until a fresh candidate
-// with a usable duration is found.
+// Picks one not-yet-used candidate video, prioritizing popular
+// creator/celebrity challenge content, falling back to general regional
+// trending if none of those are fresh.
 async function findNextSourceVideo() {
   const youtube = getYoutubeClient();
   const used = loadUsed();
+
+  const shuffledQueries = [...PRIORITY_QUERIES].sort(() => Math.random() - 0.5);
+  for (const query of shuffledQueries) {
+    let candidates;
+    try {
+      candidates = await searchCandidates(youtube, query);
+    } catch (err) {
+      console.warn(`[discover] priority search failed for "${query}": ${err.message}`);
+      continue;
+    }
+    const fresh = candidates.filter((c) => !used.videoIds.includes(c.videoId));
+    for (const candidate of fresh) {
+      if (candidate.duration && (candidate.duration < 120 || candidate.duration > 3600)) continue;
+      return { ...candidate, query: `priority:${query}`, url: `https://www.youtube.com/watch?v=${candidate.videoId}` };
+    }
+  }
+
   const shuffledRegions = [...REGIONS].sort(() => Math.random() - 0.5);
 
   for (const regionCode of shuffledRegions) {
