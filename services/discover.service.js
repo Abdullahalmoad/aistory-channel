@@ -7,7 +7,7 @@ const USED_PATH = path.join(__dirname, '..', 'data', 'used-videos.json');
 // Region(s) to pull trending videos from. Iraq isn't always populated with
 // enough variety on YouTube's trending chart, so we mix in a couple of
 // nearby/major regions as fallbacks.
-const REGIONS = ['US', 'GB', 'CA', 'AU'];
+const REGIONS = ['US', 'GB', 'CA', 'AU', 'IE', 'NZ'];
 
 function loadUsed() {
   if (!fs.existsSync(USED_PATH)) return { videoIds: [] };
@@ -43,15 +43,26 @@ function getYoutubeClient() {
   return google.youtube({ version: 'v3', auth: apiKey });
 }
 
-async function fetchTrendingCandidates(youtube, regionCode, maxResults = 25) {
-  const res = await youtube.videos.list({
-    part: ['snippet', 'contentDetails'],
-    chart: 'mostPopular',
-    regionCode,
-    maxResults,
-    videoCategoryId: undefined, // no category filter - pull whatever's trending
-  });
-  return (res.data.items || []).map((item) => {
+async function fetchTrendingCandidates(youtube, regionCode) {
+  let all = [];
+  let pageToken = undefined;
+
+  // YouTube caps a single request at 50 results, but paginate through all
+  // available pages - the trending chart itself is capped by YouTube
+  // (typically ~200 videos per region), so this pulls everything they have.
+  do {
+    const res = await youtube.videos.list({
+      part: ['snippet', 'contentDetails'],
+      chart: 'mostPopular',
+      regionCode,
+      maxResults: 50,
+      pageToken,
+    });
+    all = all.concat(res.data.items || []);
+    pageToken = res.data.nextPageToken;
+  } while (pageToken);
+
+  return all.map((item) => {
     const iso = item.contentDetails?.duration;
     let duration = null;
     if (iso) {
