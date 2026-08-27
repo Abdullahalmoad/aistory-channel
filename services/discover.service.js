@@ -47,9 +47,15 @@ function getYoutubeClient() {
 // content (e.g. MrBeast), tried before falling back to general trending.
 const PRIORITY_QUERIES = [
   'MrBeast challenge',
-  'MrBeast latest video',
   'celebrity challenge viral',
   'youtuber challenge million dollars',
+  'best restaurant food challenge',
+  'famous chef cooking challenge',
+  'gaming challenge viral moment',
+  'funny celebrity interview moment',
+  'insane world record challenge',
+  'street food challenge viral',
+  'amazing talent show moment',
 ];
 
 async function searchCandidates(youtube, query, maxResults = 15) {
