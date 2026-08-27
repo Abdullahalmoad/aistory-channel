@@ -106,7 +106,7 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
           '-an',
           '-filter_complex', letterboxFilter,
           '-r', '30',
-          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '16',
           rawClipPath,
         ],
         `cut raw clip ${idx}`
@@ -137,7 +137,7 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
           // Slightly overshoot the narration length; the final mux step
           // trims to the exact narration duration anyway.
           '-t', String(narrationDur + 0.3),
-          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '16',
           matchedClipPath,
         ],
         `time-stretch clip ${idx}`
@@ -165,7 +165,7 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
           '-vf', `ass=${assPath}`,
           '-af', `afade=t=in:st=0:d=0.02,afade=t=out:st=${fadeOutStart}:d=0.05`,
           '-t', String(narrationDur),
-          '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
+          '-c:v', 'libx264', '-preset', 'medium', '-crf', '16',
           '-c:a', 'aac', '-b:a', '160k',
           segOutPath,
         ],
@@ -188,7 +188,7 @@ async function buildSyncedShort({ sourceVideoPath, segments, workDir, outputPath
   await runFfmpeg(
     [
       '-f', 'concat', '-safe', '0', '-i', concatListPath,
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+      '-c:v', 'libx264', '-preset', 'fast', '-crf', '16',
       '-c:a', 'aac', '-b:a', '160k',
       outputPath,
     ],
