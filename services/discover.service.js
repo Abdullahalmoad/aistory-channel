@@ -46,15 +46,15 @@ function getYoutubeClient() {
 // Priority search queries for popular creator / celebrity challenge-style
 // content (e.g. MrBeast), tried before falling back to general trending.
 const PRIORITY_QUERIES = [
-  'MrBeast challenge',
+  'Ronaldo vs Messi stats comparison',
+  'football GOAT debate analysis',
+  'Ronaldo career achievements explained',
+  'Messi records explained stats',
+  'football player comparison breakdown',
   'celebrity challenge viral',
   'youtuber challenge million dollars',
   'best restaurant food challenge',
-  'famous chef cooking challenge',
-  'gaming challenge viral moment',
-  'funny celebrity interview moment',
   'insane world record challenge',
-  'street food challenge viral',
   'amazing talent show moment',
 ];
 
