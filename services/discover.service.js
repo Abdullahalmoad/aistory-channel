@@ -46,16 +46,16 @@ function getYoutubeClient() {
 // Priority search queries for popular creator / celebrity challenge-style
 // content (e.g. MrBeast), tried before falling back to general trending.
 const PRIORITY_QUERIES = [
-  'Ronaldo vs Messi stats comparison',
-  'football GOAT debate analysis',
-  'Ronaldo career achievements explained',
-  'Messi records explained stats',
-  'football player comparison breakdown',
-  'celebrity challenge viral',
-  'youtuber challenge million dollars',
-  'best restaurant food challenge',
-  'insane world record challenge',
-  'amazing talent show moment',
+  'Ronaldo emotional press conference moment',
+  'Messi emotional interview moment',
+  'football player heartwarming moment interview',
+  'Ronaldo humble moment interview',
+  'Messi humble moment fans',
+  'football star press conference reaction',
+  'celebrity emotional interview moment',
+  'famous athlete humble reaction moment',
+  'football player kind gesture fans',
+  'athlete emotional press conference',
 ];
 
 async function searchCandidates(youtube, query, maxResults = 15) {
