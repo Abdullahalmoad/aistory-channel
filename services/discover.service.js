@@ -46,16 +46,16 @@ function getYoutubeClient() {
 // Priority search queries for popular creator / celebrity challenge-style
 // content (e.g. MrBeast), tried before falling back to general trending.
 const PRIORITY_QUERIES = [
-  'Ronaldo emotional press conference moment',
-  'Messi emotional interview moment',
-  'football player heartwarming moment interview',
-  'Ronaldo humble moment interview',
-  'Messi humble moment fans',
-  'football star press conference reaction',
-  'celebrity emotional interview moment',
-  'famous athlete humble reaction moment',
-  'football player kind gesture fans',
-  'athlete emotional press conference',
+  'amazing science facts explained',
+  'mind blowing facts explained',
+  'how things work explained',
+  'weird history facts explained',
+  'psychology facts explained',
+  'space facts explained',
+  'strange animal facts explained',
+  'human body facts explained',
+  'general knowledge facts explained',
+  'interesting world facts explained',
 ];
 
 async function searchCandidates(youtube, query, maxResults = 15) {
@@ -133,7 +133,13 @@ async function fetchTrendingCandidates(youtube, regionCode) {
       categoryId: item.snippet.categoryId,
       duration,
     };
-  }).filter((v) => v.categoryId !== '10'); // exclude Music category
+  }).filter((v) => {
+    if (v.categoryId === '10') return false; // exclude Music
+    if (v.categoryId === '17') return false; // exclude Sports (match/league broadcasts)
+    const risky = /\b(fifa|uefa|premier league|la liga|nba|espn|official highlights)\b/i;
+    if (risky.test(v.title) || risky.test(v.channelTitle)) return false;
+    return true;
+  });
 }
 
 // Picks one not-yet-used candidate video, prioritizing popular
